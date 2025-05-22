@@ -1,0 +1,30 @@
+run-title: llama-mxtr-1b-base-top1-tuluv3-15
+
+resume: False 
+resume-path: ./ckpts
+model: micro-llama
+random-labels: False
+
+dataset: experts # {experts, tulu-v2-sft-mixture}
+base-model: meta-llama/Llama-3.2-1B
+tokenizer: meta-llama/Llama-3.2-1B-Instruct
+num-experts: 4
+top-k-experts: 1
+stage-2-top-k-experts: 2
+jitter-noise: 0
+use-router: True
+mask-input: True
+max-length: 4096
+save-steps: 0.25
+
+trainable:
+  - model
+
+num-epochs: 1
+batch-size: 1
+gradient-accumulation-steps: 8
+learning-rate: 2.e-5
+warmup-ratio: 0.03
+lr-scheduler: cosine
+
+save-path: ./ckpts
