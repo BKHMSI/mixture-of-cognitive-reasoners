@@ -1,3 +1,37 @@
 # Mixture of Cognitive Reasoners: Modular Reasoning with Brain-Like Specialization
 
+<div style="text-align: center">
+    <img src="figures/overview.png"/>
+</div>
+
+## Abstract
+> Human intelligence emerges from the interaction of specialized brain networks, each dedicated to distinct cognitive functions such as language processing, logical reasoning, social understanding, and memory retrieval. Inspired by this biological observation, we introduce the Mixture of Cognitive Reasoners (MiCRo) architecture and training paradigm: a modular transformer-based language model with a training curriculum that encourages the emergence of functional specialization among different modules. Inspired by studies in neuroscience, we partition the layers of a pretrained transformer model into four expert modules, each corresponding to a well-studied cognitive brain network. Our Brain-Like model has three key benefits over the state of the art: First, the specialized experts are highly interpretable and functionally critical, where removing a module significantly impairs performance on domain-relevant benchmarks. Second, our model outperforms comparable baselines that lack specialization on seven reasoning benchmarks. And third, the model’s behavior can be steered at inference time by selectively emphasizing certain expert modules (e.g., favoring social over logical reasoning), enabling fine-grained control over the style of its response. Our findings suggest that biologically inspired inductive biases involved in human cognition lead to significant modeling gains in interpretability, performance, and controllability.
+
+
 ## Repository Structure
+```
+├── configs/                  # Directory for configuration files
+│   └── ...                   # Various config files for main.py and generate.py
+├── data_utils/               # Directory for data handling utilities
+│   ├── data_collator.py      # Script to format data for training
+│   └── datasets.py           # Defines datasets used in training
+├── generations/              # Directory for data used in stage-1 and stage-2 training
+│   └── ...
+├── models/                   # Directory for model implementations
+│   ├── micro_llama.py        # Code for the MicroLlama model
+│   └── micro_olmo.py         # Code for the MicroOLMo model
+├── main.py                   # Main script to start the three-stage training process
+├── train.py                  # Training script called by main.py for each stage
+└── generate.py               # Script to generate text using a trained model, with ablation options
+```
+
+## Usage
+### Training
+<div style="text-align: center">
+    <img src="figures/training.png"/>
+</div>
+
+You can start the three-stage training process as follows:
+```bash
+python main.py -c config_micro_llama.py
+```
