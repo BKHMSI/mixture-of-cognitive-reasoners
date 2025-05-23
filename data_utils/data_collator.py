@@ -37,10 +37,14 @@ class DataCollatorForCompletionLM(DataCollatorForLanguageModeling):
                 print(f">> Using Qwen2 response template")
                 response_template = "<|im_start|>assistant"
                 self.seq_seperator_id = 151664
-            elif model_name and "olmo2" in model_name:
+            elif model_name and "olmo" in model_name:
                 # Default response template for Olmo2
                 print(f">> Using Olmo2 response template")
-                response_template = "<|assistant|>"
+                response_template = "\n<|assistant|>\n"
+                if len(self.tokenizer.encode(response_template, add_special_tokens=False)) > 1:
+                    print(f">> WARNING: Response template is not a single token")
+                    self.tokenizer.add_special_tokens({'additional_special_tokens': [response_template]})
+
                 self.seq_seperator_id = 100266
             else:
                 # Default response template for Llama-3
@@ -49,7 +53,6 @@ class DataCollatorForCompletionLM(DataCollatorForLanguageModeling):
                 self.seq_seperator_id = 128250
         else:
             self.seq_seperator_id = seq_seperator_id
-            
 
         self.model_name = model_name
         self.random_router_labels = random_router_labels
@@ -88,10 +91,9 @@ class DataCollatorForCompletionLM(DataCollatorForLanguageModeling):
                     start_idx = idx + len(self.response_token_ids)
                     break
 
-            if start_idx == 0 and self.model_name and "olmo2" in self.model_name:
-                start_idx = torch.where(seq==78191)[0] # searching for the "assistant token in OLMo2"
-                start_idx = start_idx[0].item() if len(start_idx) > 0 else 0
-
+            if start_idx == 0:
+                print(f">> WARNING: No response token found in sequence {i}")
+                
             labels[i, :start_idx] = self.ignore_index
             if "routing_weights" in batch and "baseline" not in self.model_name:
                 routing_weights_idx = 0

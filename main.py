@@ -42,11 +42,11 @@ if __name__ == "__main__":
         stage_config["run-title"] += f"_{stage_str}"
         if stage_i in [1,2]:
             stage_config["dataset"] = "experts"
-            stage_config["num-epochs"] = 2
+            stage_config["num-epochs"] = base_config.get("stage-2-epochs", 2)
             stage_config["top-k-experts"] = base_config.get("stage-2-top-k-experts", 2)
         else:
             stage_config["dataset"] = "tuluv3"
-            stage_config["num-epochs"] = 1
+            stage_config["num-epochs"] = base_config["num-epochs"]
             stage_config["top-k-experts"] = 1
 
         if stage_i in [2,3] and not stage_config["resume"]:

@@ -23,7 +23,7 @@ def read_json(path):
     return data
 
 class Tuluv3SftMixture(Dataset):
-    def __init__(self):
+    def __init__(self, config):
         data_path = "tulu-3-sft-mixture-full"
         if DATA_PATH is not None:
             data_path = os.path.join(DATA_PATH, data_path)

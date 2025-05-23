@@ -41,11 +41,13 @@ if __name__ == "__main__":
     config["debug"] = args.debug 
     config["wandb"] = args.wandb if not args.debug else False
 
+    print(">> Config: ", config)
+
     run_title = config["run-title"]
     save_path = config["save-path"]
     config["model"] = config.get("model", "mxtr-reasoners")
 
-    print("Process: ", os.environ.get('LOCAL_RANK',-1))
+    print(">> Process: ", os.environ.get('LOCAL_RANK',-1))
 
     tokenizer = AutoTokenizer.from_pretrained(config["tokenizer"])
     tokenizer.padding_side = "right"
@@ -58,7 +60,7 @@ if __name__ == "__main__":
     elif config["model"] == "olmo2-baseline":
         model_class = AutoModelForCausalLM
         tokenizer.pad_token_id = 100277
-        num_new_tokens = tokenizer.add_special_tokens({'additional_special_tokens': ['<|assistant|>']})
+        num_new_tokens = tokenizer.add_special_tokens({'additional_special_tokens': ['\n<|assistant|>\n']})
         print(">> Adding <|assistant|> token")
     elif config["model"] == "micro-llama":
         print(">> Using LlamaModelMXTR")
@@ -69,7 +71,7 @@ if __name__ == "__main__":
         model_class = MiCRoOLMo
         tokenizer.pad_token_id = 100277
         print(">> Adding <|assistant|> token")
-        num_new_tokens = tokenizer.add_special_tokens({'additional_special_tokens': ['<|assistant|>']})
+        num_new_tokens = tokenizer.add_special_tokens({'additional_special_tokens': ['\n<|assistant|>\n']})
     
     print(f">> Vocab size: {vocab_size} -> {len(tokenizer)}")
 

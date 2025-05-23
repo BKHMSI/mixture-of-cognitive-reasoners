@@ -1,11 +1,11 @@
-run-title: micro-olmo-3
+run-title: micro-olmo-general-1
 
 resume: False 
 resume-path: ./ckpts
 model: micro-olmo
-random-labels: False
+random-labels: True
 
-dataset: experts # {experts, tulu-v2-sft-mixture}
+dataset: experts # {experts, finetuning, fineweb-edu, tulu-v2-sft-mixture}
 base-model: allenai/OLMo-2-0425-1B
 tokenizer: allenai/OLMo-2-0425-1B-Instruct
 num-experts: 4
@@ -21,7 +21,6 @@ trainable:
   - model
 
 num-epochs: 2
-stage-2-epochs: 2
 batch-size: 1
 gradient-accumulation-steps: 8
 learning-rate: 1.e-5
