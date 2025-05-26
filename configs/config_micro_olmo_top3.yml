@@ -1,7 +1,7 @@
-run-title: olmo-mxtr-1b-base-top1-tuluv3-3-dpo
+run-title: micro-olmo-4
 
 resume: False 
-resume-path: /mnt/u14157_ic_nlp_001_files_nfs/nlpdata1/home/bkhmsi/self-formulating/ckpts/olmo-mxtr-1b-base-top1-tuluv3-3/stage-3/checkpoint-29354
+resume-path: ./ckpts
 model: micro-olmo
 random-labels: False
 
@@ -9,7 +9,7 @@ dataset: experts # {experts, tulu-v2-sft-mixture}
 base-model: allenai/OLMo-2-0425-1B
 tokenizer: allenai/OLMo-2-0425-1B-Instruct
 num-experts: 4
-top-k-experts: 1
+top-k-experts: 3
 stage-2-top-k-experts: 2
 jitter-noise: 0
 use-router: True
@@ -20,7 +20,7 @@ save-steps: 0.25
 trainable:
   - model
 
-num-epochs: 1
+num-epochs: 2
 stage-2-epochs: 2
 batch-size: 1
 gradient-accumulation-steps: 8

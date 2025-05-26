@@ -7,7 +7,7 @@ from pathlib import Path
 from tqdm import tqdm
 from dotenv import load_dotenv
 
-from datasets import load_from_disk
+from datasets import load_from_disk, concatenate_datasets
 from torch.utils.data import Dataset
 
 load_dotenv()
@@ -28,6 +28,24 @@ class Tuluv3SftMixture(Dataset):
         if DATA_PATH is not None:
             data_path = os.path.join(DATA_PATH, data_path)
         self.hf_dataset = load_from_disk(data_path)["train"]
+
+class Tulu2p5DPO(Dataset):
+    def __init__(self, config, split="train"):
+        data_path = "tulu-2.5-preference-data-full"
+        if DATA_PATH is not None:
+            data_path = os.path.join(DATA_PATH, data_path)
+
+        self.hf_dataset = load_from_disk(data_path)
+        self.hf_dataset = concatenate_datasets([dataset for dataset in self.hf_dataset.values()])
+
+        # take a random sample of 3025 examples from the dataset
+        # self.hf_dataset = self.hf_dataset.shuffle(seed=42).select(range(500_000))
+        
+    def __getitem__(self, idx):
+        return self.hf_dataset[idx]
+    
+    def __len__(self):
+        return len(self.hf_dataset)
 
 class ExpertsDataset(Dataset):
     def __init__(self, config):

@@ -9,11 +9,37 @@ from dotenv import load_dotenv
 
 from models.micro_llama import MiCRoLlama
 from models.micro_olmo import MiCRoOLMo
+from utils.generate_html import generate_html
 
 from transformers import AutoTokenizer, AutoConfig
 
 load_dotenv()
 DIR_PATH = os.getenv("CKPT_PATH", './ckpts')
+DIR_PATH = "./ckpts"
+
+def aggregate_routing_weights(routing_weights, tokenizer):
+    all_token_map = []
+    experts = ["Logic", "Social", "World", "Language"]
+    expert_token_layer = np.zeros((len(routing_weights), len(routing_weights[0][0])), dtype=int)
+    for layer_idx in range(len(routing_weights)):
+        token_map = []
+        for token_idx in range(len(routing_weights[layer_idx][0])):
+            decoded_token = tokenizer.decode(token_ids[0, token_idx].unsqueeze(0))
+            expert_idx = routing_weights[layer_idx][0][token_idx].argmax()
+            selected_expert = experts[expert_idx]
+            token_map.append((decoded_token, expert_idx))
+            expert_token_layer[layer_idx][token_idx] = expert_idx
+     
+        all_token_map.append(token_map)
+
+    mv_per_token = np.apply_along_axis(lambda x: np.bincount(x, minlength=4).argmax(), axis=0, arr=expert_token_layer)
+    token_map = []
+    for token_idx in range(len(mv_per_token)):
+        decoded_token = tokenizer.decode(token_ids[0, token_idx].unsqueeze(0))
+        selected_expert = experts[mv_per_token[token_idx]]
+        token_map.append((decoded_token, mv_per_token[token_idx]))
+    all_token_map.append(token_map)
+    return all_token_map
 
 def generate_continuation(model, tokenizer, prompts, max_tokens=1024, use_cache=True, return_routing_weights=True):
 
@@ -38,7 +64,6 @@ def generate_continuation(model, tokenizer, prompts, max_tokens=1024, use_cache=
         pad_token_id=tokenizer.pad_token_id,
         do_sample=False,
     )
-    
     
     if return_routing_weights:
         attention_mask = torch.ones_like(outputs)
@@ -93,11 +118,13 @@ if __name__ == "__main__":
 
     if "olmo" in config["model"]:
         model_name = "olmo-mxtr-1b-base-top1-tuluv3-3"
+        model_name = "micro-olmo-4"
     else:
         model_name = "llama-mxtr-1b-base-top1-tuluv3-15"
         # model_name = "llama-mxtr-1b-base-top1-tuluv3-random-labels-5"
 
-    path  = f"{DIR_PATH}/{model_name}/stage-3/checkpoint-29354"
+    # path  = f"{DIR_PATH}/{model_name}/stage-3/checkpoint-29354"
+    path  = f"{DIR_PATH}/{model_name}/stage-2/checkpoint-96"
 
     tokenizer = AutoTokenizer.from_pretrained(config["tokenizer"])
     tokenizer.padding_side = "left"
@@ -105,7 +132,7 @@ if __name__ == "__main__":
         tokenizer.pad_token_id = 128004
     if "olmo" in config["model"]:
         tokenizer.pad_token_id = 100277
-        num_new_tokens = tokenizer.add_special_tokens({'additional_special_tokens': ['<|assistant|>']})
+        num_new_tokens = tokenizer.add_special_tokens({'additional_special_tokens': ['\n<|assistant|>\n']})
     else:
         tokenizer.pad_token_id = 128004
 
@@ -122,6 +149,10 @@ if __name__ == "__main__":
     model.eval()
 
     prompt = "What is the Mixture of Experts (MoE) model?"
+    prompt = "Solve the following equation 2x+8=-2?"
+    prompt = "Ahmed and Sarah are playing a game. Sarah loses the game and feels sad. Ahmed notices that Sarah is quiet and looking down.\n\nQuestion: What should Ahmed do next?"
+    prompt = "What is the capital of Egypt?"
+    prompt = "Sally and Anne are in a room together. Sally places her chocolate bar inside a blue box and then leaves the room. While she is gone, Anne moves the chocolate bar from the blue box to a red box. When Sally returns,\nQuestion: Where does Sally think the chocolate bar is? Let's think step by step."
 
     chat_prompt = [{'role': 'user', 'content': prompt}]
 
@@ -130,4 +161,7 @@ if __name__ == "__main__":
     
     generation, token_ids, routing_weights, _ = generate_continuation(model, tokenizer, chat_prompt, max_tokens=384, use_cache=use_cache)
     print(generation[0])
+
+    token_map = aggregate_routing_weights(routing_weights, tokenizer)
+    generate_html(prompt, token_map)
     
