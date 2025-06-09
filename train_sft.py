@@ -10,7 +10,7 @@ from transformers import AutoConfig, AutoTokenizer, AutoModelForCausalLM
 from trl import SFTConfig, SFTTrainer
 
 from data_utils.data_collator import DataCollatorForCompletionLM
-from data_utils.datasets import Tuluv3SftMixture, ExpertsDataset
+from data_utils.train_datasets import Tuluv3SftMixture, ExpertsDataset, MeditronSFT
 
 from models.micro_llama import MiCRoLlama
 from models.micro_olmo import MiCRoOLMo
@@ -57,17 +57,17 @@ if __name__ == "__main__":
     if config["model"] == "llama-baseline":
         model_class = AutoModelForCausalLM
         tokenizer.pad_token_id = 128004
-    elif config["model"] == "olmo2-baseline":
+    elif config["model"] == "olmo-baseline":
         model_class = AutoModelForCausalLM
         tokenizer.pad_token_id = 100277
         num_new_tokens = tokenizer.add_special_tokens({'additional_special_tokens': ['\n<|assistant|>\n']})
         print(">> Adding <|assistant|> token")
     elif config["model"] == "micro-llama":
-        print(">> Using LlamaModelMXTR")
+        print(">> Using MiCRo-Llama")
         model_class = MiCRoLlama
         tokenizer.pad_token_id = 128004
     elif config["model"] == "micro-olmo":
-        print(">> Using Olmo2ModelMXTR")
+        print(">> Using MiCRo-OLMo")
         model_class = MiCRoOLMo
         tokenizer.pad_token_id = 100277
         print(">> Adding <|assistant|> token")
@@ -104,6 +104,11 @@ if __name__ == "__main__":
 
     if config["dataset"] == "tuluv3":
         train_dataset = Tuluv3SftMixture(config)
+        valid_dataset = None
+        eval_strategy = "no"
+        load_best_model_at_end = False
+    elif config["dataset"] == "medical-sft":
+        train_dataset = MeditronSFT(config)
         valid_dataset = None
         eval_strategy = "no"
         load_best_model_at_end = False

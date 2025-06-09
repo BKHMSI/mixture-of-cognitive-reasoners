@@ -1,18 +1,13 @@
-run-title: llama-mxtr-1b-base-top1-tuluv3-15
+run-title: llama-baseline-1b-base-tuluv3-1
 
 resume: False 
-resume-path: /mnt/u14157_ic_nlp_001_files_nfs/nlpdata1/home/bkhmsi/self-formulating/ckpts/llama-mxtr-1b-base-top1-tuluv3-15/stage-3/checkpoint-29354
-model: micro-llama
+resume-path: /mnt/u14157_ic_nlp_001_files_nfs/nlpdata1/home/bkhmsi/self-formulating/ckpts/llama-baseline-1b-base-tuluv3-1/stage-3/checkpoint-29354
+model: llama-baseline
 random-labels: False
 
 dataset: medical-sft # {experts, tuluv3, medical-sft}
 base-model: meta-llama/Llama-3.2-1B
 tokenizer: meta-llama/Llama-3.2-1B-Instruct
-num-experts: 4
-top-k-experts: 1
-stage-2-top-k-experts: 2
-jitter-noise: 0
-use-router: True
 mask-input: True
 max-length: 4096
 save-steps: 0.25

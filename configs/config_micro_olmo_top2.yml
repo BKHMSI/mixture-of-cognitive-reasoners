@@ -1,4 +1,4 @@
-run-title: micro-olmo-4
+run-title: olmo-mxtr-1b-base-top1-tuluv3-3-dpo-3
 
 resume: False 
 resume-path: ./ckpts

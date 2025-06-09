@@ -33,8 +33,9 @@ if __name__ == "__main__":
 
     if args.dpo:
         config_path = os.path.join(exp_path, "config.yml")
+        base_config["save-path"] = exp_path
         with open(config_path, 'w', encoding="utf-8") as fout:
-            fout.write(yaml.dump(stage_config))
+            fout.write(yaml.dump(base_config))
 
         if not args.debug:
             command = f"bash scripts/train.sh {config_path} {num_gpus} {accelerate_config_file} dpo"
@@ -46,7 +47,7 @@ if __name__ == "__main__":
 
         for stage_i in range(args.start_stage,4):
             stage_config = deepcopy(base_config)
-            stage_str = f"stage-{stage_i}"
+            stage_str = f"stage-{stage_i}-medical-sft"
             if not os.path.isdir(os.path.join(exp_path, stage_str)): 
                 os.mkdir(os.path.join(exp_path, stage_str))
 
@@ -59,7 +60,7 @@ if __name__ == "__main__":
                 stage_config["num-epochs"] = base_config.get("stage-2-epochs", 2)
                 stage_config["top-k-experts"] = base_config.get("stage-2-top-k-experts", 2)
             else:
-                stage_config["dataset"] = "tuluv3"
+                stage_config["dataset"] = "medical-sft" #tuluv3"
                 stage_config["num-epochs"] = base_config["num-epochs"]
                 stage_config["top-k-experts"] = 1
 

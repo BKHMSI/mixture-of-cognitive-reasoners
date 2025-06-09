@@ -215,8 +215,6 @@ class MiCRoOLMo(Olmo2PreTrainedModel, GenerationMixin):
 
         self.build_model(run_config)
     
-        self.loss_fn = nn.CrossEntropyLoss(reduction="sum", ignore_index=-100)
-
         # Initialize weights and apply final processing
         self.post_init()
 
@@ -390,7 +388,6 @@ class MiCRoOLMo(Olmo2PreTrainedModel, GenerationMixin):
 
         loss = None
         if labels is not None:
-            # loss = self.loss_fn(logits.view(-1, self.vocab_size), labels.view(-1))
             loss = self.loss_function(logits=logits, labels=labels, vocab_size=self.config.vocab_size, **kwargs)
 
         return CausalLMOutputWithPast(

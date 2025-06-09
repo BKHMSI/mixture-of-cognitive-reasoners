@@ -6,3 +6,4 @@ ckpts
 tests
 wandb
 outputs
+push_to_hf.py

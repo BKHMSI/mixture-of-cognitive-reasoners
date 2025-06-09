@@ -5,9 +5,9 @@ import argparse
 
 from dotenv import load_dotenv
 from trl import DPOConfig, DPOTrainer
-from transformers import AutoTokenizer, AutoConfig
+from transformers import AutoTokenizer, AutoConfig, AutoModelForCausalLM
 
-from data_utils.datasets import Tulu2p5DPO
+from data_utils.train_datasets import Tulu2p5DPO
 from glob import glob
 
 from models.micro_llama import MiCRoLlama
@@ -50,23 +50,25 @@ if __name__ == "__main__":
 
     vocab_size = len(tokenizer)
     if config["model"] == "llama-baseline":
+        print(">> Using Llama Baseline")
         model_class = AutoModelForCausalLM
         tokenizer.pad_token_id = 128004
-    elif config["model"] == "olmo2-baseline":
+    elif config["model"] == "olmo-baseline":
+        print(">> Using OLMo Baseline")
         model_class = AutoModelForCausalLM
         tokenizer.pad_token_id = 100277
-        num_new_tokens = tokenizer.add_special_tokens({'additional_special_tokens': ['\n<|assistant|>\n']})
+        num_new_tokens = tokenizer.add_special_tokens({'additional_special_tokens': ['<|assistant|>']})
         print(">> Adding <|assistant|> token")
     elif config["model"] == "micro-llama":
-        print(">> Using LlamaModelMXTR")
+        print(">> Using MiCRo-Llama")
         model_class = MiCRoLlama
         tokenizer.pad_token_id = 128004
     elif config["model"] == "micro-olmo":
-        print(">> Using Olmo2ModelMXTR")
+        print(">> Using MiCRo-OLMo")
         model_class = MiCRoOLMo
         tokenizer.pad_token_id = 100277
         print(">> Adding <|assistant|> token")
-        num_new_tokens = tokenizer.add_special_tokens({'additional_special_tokens': ['\n<|assistant|>\n']})
+        num_new_tokens = tokenizer.add_special_tokens({'additional_special_tokens': ['<|assistant|>']})
     
     print(f">> Vocab size: {vocab_size} -> {len(tokenizer)}")
 
@@ -103,7 +105,7 @@ if __name__ == "__main__":
         logging_steps=25,
         save_strategy="steps",
         save_steps=0.25,
-        save_total_limit=50,
+        save_total_limit=10,
         load_best_model_at_end=False,
         dataloader_num_workers=8,
         learning_rate=config["learning-rate"],
@@ -113,6 +115,9 @@ if __name__ == "__main__":
         gradient_checkpointing=False,
         num_train_epochs=config["num-epochs"],
         weight_decay=0.01,
+        max_grad_norm=1.0,
+        adam_beta2=0.95,
+        beta=0.1,
         report_to=report_to,
         bf16=True,
         ddp_find_unused_parameters=False,

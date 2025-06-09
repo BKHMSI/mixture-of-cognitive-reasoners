@@ -7,7 +7,7 @@ from pathlib import Path
 from tqdm import tqdm
 from dotenv import load_dotenv
 
-from datasets import load_from_disk, concatenate_datasets
+from datasets import load_from_disk, concatenate_datasets, load_dataset
 from torch.utils.data import Dataset
 
 load_dotenv()
@@ -22,6 +22,15 @@ def read_json(path):
         data = json.load(fin)
     return data
 
+class MeditronSFT(Dataset):
+    def __init__(self, config):
+        data_path = "sft_instruct_med"
+        if DATA_PATH is not None:
+            data_path = os.path.join(DATA_PATH, data_path)
+        self.hf_dataset = load_from_disk(data_path)["train"]
+        filter_datasets = ["qbank", "flashcard", "pubmedqa", "medmcqa"]
+        self.hf_dataset = self.hf_dataset.filter(lambda x: x["dataset"] in filter_datasets)
+
 class Tuluv3SftMixture(Dataset):
     def __init__(self, config):
         data_path = "tulu-3-sft-mixture-full"
@@ -35,8 +44,16 @@ class Tulu2p5DPO(Dataset):
         if DATA_PATH is not None:
             data_path = os.path.join(DATA_PATH, data_path)
 
+        keep_datasets = [
+            "prm800k_pairs_phase2",
+            "stack_exchange_paired",
+            "stack_exchange_60k",
+            "ultrafeedback_flan_v2",
+            "ultrafeedback_truthful_qa"
+        ]
+
         self.hf_dataset = load_from_disk(data_path)
-        self.hf_dataset = concatenate_datasets([dataset for dataset in self.hf_dataset.values()])
+        self.hf_dataset = concatenate_datasets([dataset for dname, dataset in self.hf_dataset.items() if dname in keep_datasets])
 
         # take a random sample of 3025 examples from the dataset
         # self.hf_dataset = self.hf_dataset.shuffle(seed=42).select(range(500_000))
@@ -130,3 +147,8 @@ class ExpertsDataset(Dataset):
 
     def __len__(self):
         return len(self.hf_dataset)
+
+
+if __name__ == "__main__":
+    #  dataset = Tulu2p5DPO(config={})
+    _ = MeditronSFT(config={})
