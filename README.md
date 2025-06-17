@@ -65,3 +65,16 @@ python generate.py -c <config> --prompt <prompt> --ablate <expert>
 └── generate.py               # Script to generate text using a trained model, with ablation options
 ```
 
+## BibTeX Citation 
+```bibtex
+@article{alkhamissi2025mixturecognitivereasoners,
+    title={Mixture of Cognitive Reasoners: Modular Reasoning with Brain-Like Specialization}, 
+    author={Badr AlKhamissi and C. Nicolò De Sabbata and Zeming Chen and Martin Schrimpf and Antoine Bosselut},
+    year={2025},
+    eprint={2506.13331},
+    archivePrefix={arXiv},
+    primaryClass={cs.LG},
+    url={https://arxiv.org/abs/2506.13331}, 
+ }
+      
+```
