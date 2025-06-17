@@ -19,30 +19,31 @@ def aggregate_routing_weights(routing_weights, tokenizer):
     all_token_map = []
     experts = ["Logic", "Social", "World", "Language"]
     expert_token_layer = np.zeros((len(routing_weights), len(routing_weights[0][0])), dtype=int)
+    expert_token_model = np.zeros((len(experts)), dtype=int)
     for layer_idx in range(len(routing_weights)):
         token_map = []
         for token_idx in range(len(routing_weights[layer_idx][0])):
             decoded_token = tokenizer.decode(token_ids[0, token_idx].unsqueeze(0))
             expert_idx = routing_weights[layer_idx][0][token_idx].argmax()
-            selected_expert = experts[expert_idx]
             token_map.append((decoded_token, expert_idx))
             expert_token_layer[layer_idx][token_idx] = expert_idx
-     
+            expert_token_model[expert_idx] += 1
+            
         all_token_map.append(token_map)
 
     mv_per_token = np.apply_along_axis(lambda x: np.bincount(x, minlength=4).argmax(), axis=0, arr=expert_token_layer)
     token_map = []
     for token_idx in range(len(mv_per_token)):
         decoded_token = tokenizer.decode(token_ids[0, token_idx].unsqueeze(0))
-        selected_expert = experts[mv_per_token[token_idx]]
         token_map.append((decoded_token, mv_per_token[token_idx]))
     all_token_map.append(token_map)
-    return all_token_map
+    
+    return all_token_map, expert_token_model
 
 def generate_continuation(model, tokenizer, prompts, max_tokens=1024, use_cache=True, return_routing_weights=True):
 
     if isinstance(prompts, str):
-        prompts = [prompts]
+        prompts = [{"role": "user", "content": prompts}]
 
     tokenizer.padding_side = "left"
     inputs = tokenizer.apply_chat_template([
@@ -92,26 +93,11 @@ def generate_continuation(model, tokenizer, prompts, max_tokens=1024, use_cache=
     gen_token_ids = outputs[:, inputs.shape[1]:]
     return generations, gen_token_ids, routing_weights, loss_indices
 
-if __name__ == "__main__":
 
-    parser = argparse.ArgumentParser(description='Paramaters')
-    parser.add_argument('-c', '--config',  type=str,
-                        default="config_micro_llama.yml", help='path of config file')
-    parser.add_argument('--prompt',  type=str,
-                        default=None, help='input prompt')
-    parser.add_argument('--ablate',  type=str,
-                        default="none", help='expert to ablate')
-    
-    args = parser.parse_args()
-
-    with open(f"configs/{args.config}", 'r', encoding="utf-8") as file:
-        config_raw = file.read()
-        config = yaml.load(config_raw, Loader=yaml.FullLoader)
-
+def build_model(config, args, use_cache=True):
     model_config = AutoConfig.from_pretrained(config["base-model"])
     model_config.config_path = f"configs/{args.config}"
 
-    use_cache = True
     model_config.torch_dtype = torch.bfloat16
     model_config.use_bfloat16 = True
     model_config._attn_implementation = "flash_attention_2"
@@ -125,6 +111,7 @@ if __name__ == "__main__":
 
     tokenizer = AutoTokenizer.from_pretrained(config["tokenizer"])
     tokenizer.padding_side = "left"
+
     if "llama" in config["model"]:
         tokenizer.pad_token_id = 128004
     if "olmo" in config["model"]:
@@ -144,6 +131,25 @@ if __name__ == "__main__":
     model.to(f'cuda')
     model = model.bfloat16()
     model.eval()
+    return model, tokenizer
+
+if __name__ == "__main__":
+
+    parser = argparse.ArgumentParser(description='Paramaters')
+    parser.add_argument('-c', '--config',  type=str,
+                        default="config_micro_llama.yml", help='path of config file')
+    parser.add_argument('--prompt',  type=str,
+                        default=None, help='input prompt')
+    parser.add_argument('--ablate',  type=str,
+                        default="none", help='expert to ablate')
+    
+    args = parser.parse_args()
+
+    with open(f"configs/{args.config}", 'r', encoding="utf-8") as file:
+        config_raw = file.read()
+        config = yaml.load(config_raw, Loader=yaml.FullLoader)
+
+    model, tokenizer = build_model(config, args, use_cache=True)
 
     prompt = args.prompt if args.prompt != "" else "What is the Mixture of Experts (MoE) model?"
     # prompt = "Solve the following equation 2x+8=-2?

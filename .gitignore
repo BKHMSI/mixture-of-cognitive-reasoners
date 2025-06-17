@@ -6,4 +6,5 @@ ckpts
 tests
 wandb
 outputs
+data
 push_to_hf.py

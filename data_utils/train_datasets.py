@@ -2,6 +2,7 @@ import os
 import json
 import torch
 import datasets
+import numpy as np
 from pathlib import Path
 
 from tqdm import tqdm
@@ -29,6 +30,7 @@ class MeditronSFT(Dataset):
             data_path = os.path.join(DATA_PATH, data_path)
         self.hf_dataset = load_from_disk(data_path)["train"]
         filter_datasets = ["qbank", "flashcard", "pubmedqa", "medmcqa"]
+        unique_datasets = np.unique(self.hf_dataset["dataset"])
         self.hf_dataset = self.hf_dataset.filter(lambda x: x["dataset"] in filter_datasets)
 
 class Tuluv3SftMixture(Dataset):

@@ -47,7 +47,7 @@ if __name__ == "__main__":
 
         for stage_i in range(args.start_stage,4):
             stage_config = deepcopy(base_config)
-            stage_str = f"stage-{stage_i}-medical-sft"
+            stage_str = f"stage-{stage_i}-medical-sft-2"
             if not os.path.isdir(os.path.join(exp_path, stage_str)): 
                 os.mkdir(os.path.join(exp_path, stage_str))
 

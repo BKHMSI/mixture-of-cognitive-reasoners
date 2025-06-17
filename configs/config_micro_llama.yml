@@ -20,7 +20,7 @@ save-steps: 0.25
 trainable:
   - model
 
-num-epochs: 1
+num-epochs: 2
 stage-2-epochs: 2
 batch-size: 1
 gradient-accumulation-steps: 8
