@@ -1,6 +1,5 @@
 .env
 *.pyc
-*.txt
 .DS_Store
 ckpts
 tests
@@ -8,3 +7,4 @@ wandb
 outputs
 data
 push_to_hf.py
+runai_output.txt

@@ -1,0 +1,16 @@
+datasets==4.0.0
+deepspeed==0.15.4
+huggingface_hub==0.34.1
+matplotlib==3.10.5
+numpy==2.3.2
+pandas==2.3.1
+python-dotenv==1.1.1
+PyYAML==6.0.2
+PyYAML==6.0.2
+safetensors==0.5.3
+scipy==1.16.1
+seaborn==0.13.2
+torch==2.7.1
+tqdm==4.67.1
+transformers==4.54.0
+trl==0.15.2

@@ -7,25 +7,27 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributed as dist
 
-# from transformers.utils import TransformerKwargs
 from transformers import LlamaConfig, AutoTokenizer, AutoModelForCausalLM
 from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 from transformers.models.llama.modeling_llama import (
     LlamaRotaryEmbedding, 
     LlamaRMSNorm, 
     LlamaMLP,
-    LlamaDecoderLayer,
+    LlamaAttention,
+    LlamaForCausalLM,
     LlamaPreTrainedModel, 
     GenerationMixin,
     apply_rotary_pos_emb,
     eager_attention_forward,
 
 )
+from transformers.modeling_layers import GradientCheckpointingLayer
 from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS
 from transformers.cache_utils import Cache, StaticCache, DynamicCache
 from transformers.modeling_flash_attention_utils import FlashAttentionKwargs
 from transformers.processing_utils import Unpack
 from transformers.utils import is_torchdynamo_compiling
+from transformers.activations import ACT2FN
 from models.modules import CausalLMOutputWithPast
 
 logger = logging.getLogger(__name__)
@@ -82,138 +84,124 @@ def _prepare_4d_causal_attention_mask_with_cache_position(
 
     return causal_mask
 
-class MiCRoLlamaDecoderLayer(nn.Module):
-    def __init__(self, config: LlamaConfig, layer_idx: int):
+
+class LlamaSparseMoEBlock(nn.Module):
+    """
+    This implementation is
+    strictly equivalent to standard MoE with full capacity (no
+    dropped tokens). It's faster since it formulates MoE operations
+    in terms of block-sparse operations to accommodate imbalanced
+    assignments of tokens to experts, whereas standard MoE either
+    (1) drop tokens at the cost of reduced performance or (2) set
+    capacity factor to number of experts and thus waste computation
+    and memory on padding.
+    """
+
+    def __init__(self, config):
         super().__init__()
         self.hidden_dim = config.hidden_size
         self.ffn_dim = config.intermediate_size
         self.num_experts = config.num_experts
         self.top_k = config.num_experts_per_tok
-        self.use_router = config.use_router
-        self.ablate = config.ablate
-        self.num_key_value_heads = config.num_key_value_heads
-        self.head_dim = self.hidden_dim // config.num_attention_heads
-        if isinstance(self.ablate, str):
-            self.ablate = [self.ablate]
 
+        # gating
         self.gate = nn.Sequential(
             nn.Linear(self.hidden_dim, self.hidden_dim, bias=False),
             nn.Linear(self.hidden_dim, self.num_experts, bias=False)
         )
 
-        self.num_layers = config.backbone_num_layers
-        self.layer_idx = layer_idx
+        self.experts = nn.ModuleList([LlamaMLP(config) for _ in range(self.num_experts)])
 
-        self.experts = nn.ModuleList([LlamaDecoderLayer(config, layer_idx * self.num_experts + expert_idx) for expert_idx in range(self.num_experts)])
-
+        # Jitter parameters
         self.jitter_noise = config.jitter_noise
+
+    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+        """ """
+        batch_size, sequence_length, hidden_dim = hidden_states.shape
+        if self.training and self.jitter_noise > 0:
+            hidden_states *= torch.empty_like(hidden_states).uniform_(1.0 - self.jitter_noise, 1.0 + self.jitter_noise)
+        hidden_states = hidden_states.view(-1, hidden_dim)
+        # router_logits: (batch * sequence_length, n_experts)
+        router_logits = self.gate(hidden_states)
+
+        routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
+        routing_weights, selected_experts = torch.topk(routing_weights, self.top_k, dim=-1)
+        routing_weights /= routing_weights.sum(dim=-1, keepdim=True)
+        # we cast back to the input dtype
+        routing_weights = routing_weights.to(hidden_states.dtype)
+
+        final_hidden_states = torch.zeros(
+            (batch_size * sequence_length, hidden_dim), dtype=hidden_states.dtype, device=hidden_states.device
+        )
+
+        # One hot encode the selected experts to create an expert mask
+        # this will be used to easily index which expert is going to be sollicitated
+        expert_mask = torch.nn.functional.one_hot(selected_experts, num_classes=self.num_experts).permute(2, 1, 0)
+
+        expert_hitted = torch.greater(expert_mask.sum(dim=(-1, -2)), 0).nonzero()
+        for expert_idx in expert_hitted:
+            expert_layer = self.experts[expert_idx]
+            idx, top_x = torch.where(expert_mask[expert_idx].squeeze(0))
+            # Index the correct hidden states and compute the expert hidden state for
+            # the current expert. We need to make sure to multiply the output hidden
+            # states by `routing_weights` on the corresponding tokens (top-1 and top-2)
+            current_state = hidden_states[None, top_x].reshape(-1, hidden_dim)
+            current_hidden_states = expert_layer(current_state) * routing_weights[top_x, idx, None]
+
+            # However `index_add_` only support torch tensors for indexing so we'll use
+            # the `top_x` tensor here.
+            final_hidden_states.index_add_(0, top_x, current_hidden_states.to(hidden_states.dtype))
+        final_hidden_states = final_hidden_states.reshape(batch_size, sequence_length, hidden_dim)
+        return final_hidden_states, router_logits
+    
+
+class LlamaMoEDecoderLayer(GradientCheckpointingLayer):
+    def __init__(self, config: LlamaConfig, layer_idx: int):
+        super().__init__()
+        self.hidden_size = config.hidden_size
+
+        self.self_attn = LlamaAttention(config=config, layer_idx=layer_idx)
+
+        self.block_sparse_moe = LlamaSparseMoEBlock(config)
+        self.input_layernorm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
+        self.post_attention_layernorm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
 
     def forward(
         self,
         hidden_states: torch.Tensor,
-        routing_weights: Optional[torch.Tensor] = None,
+        position_embeddings: tuple[torch.Tensor, torch.Tensor],
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
-        ablate: Optional[List[str]] = None,
-        past_key_value: Optional[Cache] = None,
-        output_attentions: Optional[bool] = False,
-        use_cache: Optional[bool] = False,
+        past_key_value: Optional[tuple[torch.Tensor]] = None,
         cache_position: Optional[torch.LongTensor] = None,
-        position_embeddings: Optional[Tuple[torch.Tensor, torch.Tensor]] = None,  # will become mandatory in v4.46
-        **kwargs,
-    ) -> Tuple[torch.FloatTensor, Optional[Tuple[torch.FloatTensor, torch.FloatTensor]]]:
+        **kwargs: Unpack[FlashAttentionKwargs],
+    ) -> torch.FloatTensor:
+        residual = hidden_states
+
+        hidden_states = self.input_layernorm(hidden_states)
+
+        # Self Attention
+        hidden_states, _ = self.self_attn(
+            hidden_states=hidden_states,
+            position_embeddings=position_embeddings,
+            attention_mask=attention_mask,
+            position_ids=position_ids,
+            past_key_value=past_key_value,
+            cache_position=cache_position,
+            **kwargs,
+        )
+        hidden_states = residual + hidden_states
+
+        # Fully Connected
+        residual = hidden_states
+        hidden_states = self.post_attention_layernorm(hidden_states)
+        hidden_states, router_logits = self.block_sparse_moe(hidden_states)
+        hidden_states = residual + hidden_states
+
+        return hidden_states, router_logits
+
     
-        batch_size, sequence_length, hidden_dim = hidden_states.shape
-
-        if ablate is not None:
-            self.ablate = ablate
-
-        if self.training and self.jitter_noise > 0:
-            hidden_states *= torch.empty_like(hidden_states).uniform_(1.0 - self.jitter_noise, 1.0 + self.jitter_noise)
-        
-        if self.use_router:
-            router_logits = self.gate(hidden_states)
-            if "logic" in self.ablate:
-                router_logits[..., 0] = -torch.inf
-            if "social" in self.ablate:
-                router_logits[..., 1] = -torch.inf
-            if "world" in self.ablate:
-                router_logits[..., 2] = -torch.inf
-            if "language" in self.ablate:
-                router_logits[..., 3] = -torch.inf
-            routing_weights = F.softmax(router_logits, dim=-1, dtype=torch.float)
-        else:
-            if len(routing_weights.shape) == 2:
-                routing_weights = routing_weights.unsqueeze(1).tile((1,sequence_length,1)).float()
-            else:
-                routing_weights = routing_weights.float()
-            router_logits = routing_weights
-
-        routing_weights, selected_experts = torch.topk(routing_weights, self.top_k, dim=-1)
-        routing_weights /= (routing_weights.sum(dim=-1, keepdim=True) + 1e-9)
-
-        # we cast back to the input dtype
-        routing_weights = routing_weights.to(hidden_states.dtype)
-
-        # We'll accumulate outputs here
-        final_hidden_states = torch.zeros_like(hidden_states)
-
-        # Flatten final_hidden_states to [batch_size * seq_len, hidden_dim]
-        # so we can do a 2D "index_add_" at the end of each loop.
-        final_hidden_states_2d = final_hidden_states.view(-1, hidden_dim)
-    
-        # One hot encode the selected experts to create an expert mask
-        # this will be used to easily index which expert is going to be sollicitated
-        expert_mask = F.one_hot(selected_experts, num_classes=self.num_experts)
-        #^ [batch_size, seq_len, top_k, num_experts]
-
-        # Loop over all available experts in the model and perform the computation on each expert
-        for expert_idx in range(self.num_experts):
-            expert_layer: LlamaDecoderLayer = self.experts[expert_idx]
-            batch_indices, seq_indices, top_k_indices = torch.where(expert_mask[..., expert_idx])
-
-            if not self.training and sequence_length == 1 and batch_indices.numel() == 0:
-                if past_key_value is not None:
-                    
-                    hidden_state_ln_norm = expert_layer.input_layernorm(hidden_states)
-
-                    input_shape = hidden_state_ln_norm.shape[:-1]
-                    hidden_shape = (*input_shape, -1, self.head_dim)
-
-                    # query_states = expert_layer.self_attn.q_proj(hidden_state_ln_norm).view(hidden_shape).transpose(1, 2)
-                    key_states = expert_layer.self_attn.k_proj(hidden_state_ln_norm).view(hidden_shape).transpose(1, 2)
-                    value_states = expert_layer.self_attn.v_proj(hidden_state_ln_norm).view(hidden_shape).transpose(1, 2)
-
-                    cos, sin = position_embeddings
-                    _, key_states = apply_rotary_pos_emb(key_states, key_states, cos, sin)
-                    # sin and cos are specific to RoPE models; cache_position needed for the static cache
-                    cache_kwargs = {"sin": sin, "cos": cos, "cache_position": cache_position}
-                    past_key_value.update(key_states, value_states, self.layer_idx * self.num_experts + expert_idx, cache_kwargs)
-
-                continue
-        
-            current_hidden_states = expert_layer(
-                hidden_states=hidden_states,
-                attention_mask=attention_mask,
-                position_ids=position_ids,
-                past_key_value=past_key_value,
-                output_attentions=output_attentions,
-                use_cache=use_cache,
-                cache_position=cache_position,
-                position_embeddings=position_embeddings,
-                **kwargs,
-            )[0]
-            
-            flat_idx = batch_indices * sequence_length + seq_indices
-            expert_weights = routing_weights[batch_indices, seq_indices, top_k_indices].unsqueeze(-1)
-            current_hidden_states = current_hidden_states[batch_indices, seq_indices] * expert_weights
-
-            final_hidden_states_2d.index_add_(0, flat_idx, current_hidden_states.to(hidden_states.dtype))
-
-        final_hidden_states = final_hidden_states_2d.view(batch_size, sequence_length, hidden_dim)
-        return final_hidden_states, router_logits
-    
-class MiCRoLlama(LlamaPreTrainedModel, GenerationMixin):
+class LlamaMoE(LlamaPreTrainedModel, GenerationMixin):
     def __init__(self, config):
         with open(config.config_path, 'r', encoding="utf-8") as file:
             run_config = yaml.load(file.read(), Loader=yaml.FullLoader)
@@ -224,14 +212,14 @@ class MiCRoLlama(LlamaPreTrainedModel, GenerationMixin):
         self.config._attn_implementation = "flash_attention_2" # {sdpa, flash_attention_2, eager}
         self.config.use_cache = True
         self.config.backbone_num_layers = self.config.num_hidden_layers
-        self.config.num_hidden_layers = self.config.num_hidden_layers * run_config["num-experts"]
+        self.config.num_hidden_layers = self.config.num_hidden_layers
         self.config.loss_type = "ForCausalLMLoss"
         
         self.tokenizer = AutoTokenizer.from_pretrained(run_config["tokenizer"])
         self.assistant_header_ids = torch.tensor(self.tokenizer.encode("<|start_header_id|>assistant<|end_header_id|>")[1:])
         self.user_header_ids = torch.tensor(self.tokenizer.encode("<|start_header_id|>user<|end_header_id|>")[1:])
 
-        super(MiCRoLlama, self).__init__(self.config)
+        super(LlamaMoE, self).__init__(self.config)
         self.build_model(run_config)
 
     def build_model(self, run_config):
@@ -242,55 +230,19 @@ class MiCRoLlama(LlamaPreTrainedModel, GenerationMixin):
         self.config.num_experts_per_tok = run_config["top-k-experts"]
         self.config.jitter_noise = run_config["jitter-noise"]
         self.config.loss_method = run_config.get("loss", "all")
+        self.router_aux_loss_coef = run_config["router-aux-loss-coef"]
+        self.use_load_balancing = run_config.get("use-load-balancing", False)
 
         self.run_config = run_config
         self.padding_idx = 128004
         
-        # MiCRoLlama model
+        # LlamaMoE model
         self.embed_tokens = nn.Embedding(self.config.vocab_size, self.config.hidden_size, self.padding_idx)
-        self.layers = nn.ModuleList([MiCRoLlamaDecoderLayer(self.config, layer_idx) for layer_idx in range(self.config.backbone_num_layers)])
+        self.layers = nn.ModuleList([LlamaMoEDecoderLayer(self.config, layer_idx) for layer_idx in range(self.config.backbone_num_layers)])
         self.lm_head = nn.Linear(self.config.hidden_size, self.config.vocab_size, bias=False)
         self.rotary_emb = LlamaRotaryEmbedding(config=self.config)
         self.final_norm = LlamaRMSNorm(self.config.hidden_size, eps=self.config.rms_norm_eps)
-
-        # Freeze Model
-        for param in self.parameters():
-            param.requires_grad = False
-
-        # Unfreeze Modules
-        if "reasoners" in run_config["trainable"]:
-            print(">> Unfreezing Reasoning Modules")
-            for layer in self.layers:
-                for param in layer.experts.parameters():
-                    param.requires_grad = True
-
-        if "model" in run_config["trainable"]:
-            print(">> Unfreezing Model")
-            for param in self.layers.parameters():
-                param.requires_grad = True
-
-            for param in self.lm_head.parameters():
-                param.requires_grad = True
-
-            for param in self.rotary_emb.parameters():
-                param.requires_grad = True
-
-            for param in self.final_norm.parameters():
-                param.requires_grad = True
-
-            for param in self.embed_tokens.parameters():
-                param.requires_grad = True
-
-            for layer in self.layers:
-                for param in layer.gate.parameters():
-                    param.requires_grad = False
-
-
-        if "experts-router" in run_config["trainable"]:
-            print(">> Unfreezing Experts Router")
-            for layer in self.layers:
-                for param in layer.gate.parameters():
-                    param.requires_grad = True
+       
 
     def forward(self,
         input_ids: torch.LongTensor = None,
@@ -409,6 +361,16 @@ class MiCRoLlama(LlamaPreTrainedModel, GenerationMixin):
         if labels is not None:
             loss = self.loss_function(logits=logits, labels=labels, vocab_size=self.config.vocab_size, **kwargs)
 
+            aux_loss = None
+            if self.use_load_balancing:
+                aux_loss = load_balancing_loss_func(
+                    all_routing_weights,
+                    self.config.num_experts,
+                    self.config.num_experts_per_tok,
+                    attention_mask,
+                )
+                loss += self.router_aux_loss_coef * aux_loss.to(loss.device)  # make sure to reside in the same device
+
         if not return_dict:
             output = (logits,) + (past_key_values, all_hidden_states, all_self_attns, all_routing_weights) if use_cache else (logits, all_hidden_states, all_self_attns, all_routing_weights) 
             return (loss,) + output if loss is not None else output
@@ -489,15 +451,26 @@ class MiCRoLlama(LlamaPreTrainedModel, GenerationMixin):
         return causal_mask
 
     def load_pretrained(self, model_name):
-        base_model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16)
+        base_model: LlamaForCausalLM = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=torch.bfloat16)
         self.lm_head.load_state_dict(base_model.lm_head.state_dict())
         self.embed_tokens.load_state_dict(base_model.get_input_embeddings().state_dict())
         self.rotary_emb.load_state_dict(base_model.model.rotary_emb.state_dict())
         self.final_norm.load_state_dict(base_model.model.norm.state_dict())
+
         for layer_idx, layer in enumerate(self.layers):
-            base_model_layer = base_model.model.layers[layer_idx].state_dict()
-            for expert in layer.experts:
-                expert.load_state_dict(base_model_layer)
+            
+            attn_layer = base_model.model.layers[layer_idx].self_attn.state_dict()
+            layer.self_attn.load_state_dict(attn_layer)
+            
+            input_layernorm = base_model.model.layers[layer_idx].input_layernorm.state_dict()
+            layer.input_layernorm.load_state_dict(input_layernorm)
+
+            post_attention_layernorm = base_model.model.layers[layer_idx].post_attention_layernorm.state_dict()
+            layer.post_attention_layernorm.load_state_dict(post_attention_layernorm)
+            
+            mlp_model_layer = base_model.model.layers[layer_idx].mlp.state_dict()
+            for expert in layer.block_sparse_moe.experts:
+                expert.load_state_dict(mlp_model_layer)
 
     def prepare_inputs_for_generation(
         self,
@@ -575,3 +548,84 @@ class MiCRoLlama(LlamaPreTrainedModel, GenerationMixin):
             }
         )
         return model_inputs
+    
+def load_balancing_loss_func(
+    gate_logits: Union[torch.Tensor, tuple[torch.Tensor], None],
+    num_experts: Optional[int] = None,
+    top_k=2,
+    attention_mask: Optional[torch.Tensor] = None,
+) -> Union[torch.Tensor, int]:
+    r"""
+    Computes auxiliary load balancing loss as in Switch Transformer - implemented in Pytorch.
+
+    See Switch Transformer (https://huggingface.co/papers/2101.03961) for more details. This function implements the loss
+    function presented in equations (4) - (6) of the paper. It aims at penalizing cases where the routing between
+    experts is too unbalanced.
+
+    Args:
+        gate_logits:
+            Logits from the `gate`, should be a tuple of model.config.num_hidden_layers tensors of
+            shape [batch_size X sequence_length, num_experts].
+        num_experts:
+            Number of experts
+        top_k:
+            The number of experts to route per-token, can be also interpreted as the `top-k` routing
+            parameter.
+        attention_mask (`torch.Tensor`, *optional*):
+            The attention_mask used in forward function
+            shape [batch_size X sequence_length] if not None.
+
+    Returns:
+        The auxiliary loss.
+    """
+    if gate_logits is None or not isinstance(gate_logits, tuple):
+        return 0
+
+    if isinstance(gate_logits, tuple):
+        compute_device = gate_logits[0].device
+        concatenated_gate_logits = torch.cat([layer_gate.to(compute_device) for layer_gate in gate_logits], dim=0)
+
+    routing_weights = torch.nn.functional.softmax(concatenated_gate_logits, dim=-1)
+
+    _, selected_experts = torch.topk(routing_weights, top_k, dim=-1)
+
+    expert_mask = torch.nn.functional.one_hot(selected_experts, num_experts)
+
+    if attention_mask is None:
+        # Compute the percentage of tokens routed to each experts
+        tokens_per_expert = torch.mean(expert_mask.float(), dim=0)
+
+        # Compute the average probability of routing to these experts
+        router_prob_per_expert = torch.mean(routing_weights, dim=0)
+    else:
+        batch_size, sequence_length = attention_mask.shape
+        num_hidden_layers = concatenated_gate_logits.shape[0] // (batch_size * sequence_length)
+
+        # Compute the mask that masks all padding tokens as 0 with the same shape of expert_mask
+        expert_attention_mask = (
+            attention_mask[None, :, :, None, None]
+            .expand((num_hidden_layers, batch_size, sequence_length, top_k, num_experts))
+            .reshape(-1, top_k, num_experts)
+            .to(compute_device)
+        )
+
+        # Compute the percentage of tokens routed to each experts
+        tokens_per_expert = torch.sum(expert_mask.float() * expert_attention_mask, dim=0) / torch.sum(
+            expert_attention_mask, dim=0
+        )
+
+        # Compute the mask that masks all padding tokens as 0 with the same shape of tokens_per_expert
+        router_per_expert_attention_mask = (
+            attention_mask[None, :, :, None]
+            .expand((num_hidden_layers, batch_size, sequence_length, num_experts))
+            .reshape(-1, num_experts)
+            .to(compute_device)
+        )
+
+        # Compute the average probability of routing to these experts
+        router_prob_per_expert = torch.sum(routing_weights * router_per_expert_attention_mask, dim=0) / torch.sum(
+            router_per_expert_attention_mask, dim=0
+        )
+
+    overall_loss = torch.sum(tokens_per_expert * router_prob_per_expert.unsqueeze(0))
+    return overall_loss * num_experts

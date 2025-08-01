@@ -40,7 +40,13 @@ def aggregate_routing_weights(routing_weights, tokenizer):
     
     return all_token_map, expert_token_model
 
-def generate_continuation(model, tokenizer, prompts, max_tokens=1024, use_cache=True, return_routing_weights=True):
+def generate_continuation(model, 
+    tokenizer, 
+    prompts, 
+    max_tokens=1024,
+    use_cache=True, 
+    return_routing_weights=True
+):
 
     if isinstance(prompts, str):
         prompts = [{"role": "user", "content": prompts}]

@@ -14,6 +14,7 @@ from data_utils.train_datasets import Tuluv3SftMixture, ExpertsDataset, Meditron
 
 from models.micro_llama import MiCRoLlama
 from models.micro_olmo import MiCRoOLMo
+from models.moe_llama import LlamaMoE
 
 load_dotenv()
 WANDB_API_KEY = os.getenv("WANDB_API_KEY", None)
@@ -65,6 +66,10 @@ if __name__ == "__main__":
     elif config["model"] == "micro-llama":
         print(">> Using MiCRo-Llama")
         model_class = MiCRoLlama
+        tokenizer.pad_token_id = 128004
+    elif config["model"] == "llama-moe":
+        print(">> Using Llama MoE")
+        model_class = LlamaMoE
         tokenizer.pad_token_id = 128004
     elif config["model"] == "micro-olmo":
         print(">> Using MiCRo-OLMo")

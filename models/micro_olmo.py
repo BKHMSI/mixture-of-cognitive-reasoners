@@ -18,7 +18,6 @@ from transformers.modeling_rope_utils import ROPE_INIT_FUNCTIONS, dynamic_rope_u
 from transformers.modeling_utils import ALL_ATTENTION_FUNCTIONS, PreTrainedModel
 from transformers.processing_utils import Unpack
 from transformers.utils import (
-    LossKwargs,
     add_start_docstrings,
     add_start_docstrings_to_model_forward,
     can_return_tuple,
@@ -34,7 +33,6 @@ from transformers.models.olmo2.modeling_olmo2 import (
     Olmo2DecoderLayer,
     Olmo2RotaryEmbedding,
     Olmo2PreTrainedModel,
-    KwargsForCausalLM,
     rotate_half,
     apply_rotary_pos_emb,
     repeat_kv,
@@ -302,7 +300,7 @@ class MiCRoOLMo(Olmo2PreTrainedModel, GenerationMixin):
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
         logits_to_keep: Union[int, torch.Tensor] = 0,
-        **kwargs: Unpack[KwargsForCausalLM],
+        **kwargs: Unpack[FlashAttentionKwargs],
     ) -> BaseModelOutputWithPast:
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (

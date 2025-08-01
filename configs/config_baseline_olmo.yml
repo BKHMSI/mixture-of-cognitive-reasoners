@@ -1,11 +1,11 @@
-run-title: olmo-baseline-1b-base-tuluv3-2
+run-title: olmo-baseline-1b-base-tuluv3-2-dpo-4
 
 resume: False 
-resume-path: /mnt/u14157_ic_nlp_001_files_nfs/nlpdata1/home/bkhmsi/self-formulating/ckpts/olmo-baseline-1b-base-tuluv3-2/stage-3/checkpoint-29354
+resume-path: olmo-baseline-1b-base-tuluv3-2/stage-3/checkpoint-29354
 model: olmo-baseline
 random-labels: False
 
-dataset: medical-sft # {experts, tuluv3, medical-sft}
+dataset: dpo # {dpo, experts, tuluv3, medical-sft}
 base-model: allenai/OLMo-2-0425-1B
 tokenizer: allenai/OLMo-2-0425-1B-Instruct
 mask-input: True
@@ -15,12 +15,12 @@ save-steps: 0.25
 trainable:
   - model
 
-num-epochs: 3
+num-epochs: 2
 stage-2-epochs: 2
 batch-size: 1
-gradient-accumulation-steps: 8
-learning-rate: 2.e-5
+gradient-accumulation-steps: 4
+learning-rate: 1.e-6
 warmup-ratio: 0.03
 lr-scheduler: cosine
 
-save-path: /mnt/u14157_ic_nlp_001_files_nfs/nlpdata1/home/bkhmsi/self-formulating/ckpts
+save-path: ./ckpts

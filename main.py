@@ -17,6 +17,7 @@ if __name__ == "__main__":
     parser.add_argument("--stage-1-only", action="store_true", help="Train stage-1 only")
     parser.add_argument("--stage-2-only", action="store_true", help="Train stage-2 only")
     parser.add_argument("--dpo", action="store_true", help="Train using DPO")
+    parser.add_argument("--moe", action="store_true", help="Train using vanilla MoE")
     args = parser.parse_args()
 
     with open(f"configs/{args.config}", 'r', encoding="utf-8") as file:
@@ -43,11 +44,23 @@ if __name__ == "__main__":
             command = f"python train_dpo.py --debug -c {config_path}"
         
         os.system(command)
+    elif args.moe:
+        config_path = os.path.join(exp_path, "config.yml")
+        base_config["save-path"] = exp_path
+        with open(config_path, 'w', encoding="utf-8") as fout:
+            fout.write(yaml.dump(base_config))
+
+        if not args.debug:
+            command = f"bash scripts/train.sh {config_path} {num_gpus} {accelerate_config_file} sft"
+        else:
+            command = f"python train_sft.py --debug -c {config_path}"
+
+        os.system(command)
     else:
 
         for stage_i in range(args.start_stage,4):
             stage_config = deepcopy(base_config)
-            stage_str = f"stage-{stage_i}-medical-sft-2"
+            stage_str = f"stage-{stage_i}"
             if not os.path.isdir(os.path.join(exp_path, stage_str)): 
                 os.mkdir(os.path.join(exp_path, stage_str))
 
@@ -60,7 +73,7 @@ if __name__ == "__main__":
                 stage_config["num-epochs"] = base_config.get("stage-2-epochs", 2)
                 stage_config["top-k-experts"] = base_config.get("stage-2-top-k-experts", 2)
             else:
-                stage_config["dataset"] = "medical-sft" #tuluv3"
+                stage_config["dataset"] = "tuluv3" #"medical-sft"
                 stage_config["num-epochs"] = base_config["num-epochs"]
                 stage_config["top-k-experts"] = 1
 
