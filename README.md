@@ -9,7 +9,7 @@
     <img src="https://huggingface.co/datasets/huggingface/badges/resolve/main/model-on-hf-sm.svg" alt="HF Models"/>
   </a> |
   [
-    <a href="https://bkhmsi.github.io/mixture-of-cog-reasoners/">
+    <a href="https://cognitive-reasoners.epfl.ch">
         Project Page
     </a>
   ]
