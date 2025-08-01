@@ -1,8 +1,21 @@
 # Mixture of Cognitive Reasoners: Modular Reasoning with Brain-Like Specialization
 
-TODO: arXiv link coming soon.
 
-[![MiCRo-Llama](https://huggingface.co/datasets/huggingface/badges/resolve/main/model-on-hf-sm.svg)](https://huggingface.co/collections/bkhmsi/mixture-of-cognitive-reasoners-684709a0f9cdd7fa180f6678)
+<p>
+  <a href="https://arxiv.org/abs/2506.13331">
+    <img src="https://img.shields.io/badge/arXiv-1234.56789-b31b1b.svg" alt="arXiv"/>
+  </a> |
+  <a href="https://huggingface.co/collections/bkhmsi/mixture-of-cognitive-reasoners-684709a0f9cdd7fa180f6678">
+    <img src="https://huggingface.co/datasets/huggingface/badges/resolve/main/model-on-hf-sm.svg" alt="HF Models"/>
+  </a> |
+  [
+    <a href="https://bkhmsi.github.io/mixture-of-cog-reasoners/">
+        Project Page
+    </a>
+  ]
+</p>
+
+
 
 <div style="text-align: center">
     <img src="figures/overview.png"/>
@@ -52,3 +65,16 @@ python generate.py -c <config> --prompt <prompt> --ablate <expert>
 └── generate.py               # Script to generate text using a trained model, with ablation options
 ```
 
+## BibTeX Citation 
+```bibtex
+@article{alkhamissi2025mixturecognitivereasoners,
+    title={Mixture of Cognitive Reasoners: Modular Reasoning with Brain-Like Specialization}, 
+    author={Badr AlKhamissi and C. Nicolò De Sabbata and Zeming Chen and Martin Schrimpf and Antoine Bosselut},
+    year={2025},
+    eprint={2506.13331},
+    archivePrefix={arXiv},
+    primaryClass={cs.LG},
+    url={https://arxiv.org/abs/2506.13331}, 
+ }
+      
+```
