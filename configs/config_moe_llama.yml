@@ -24,7 +24,7 @@ trainable:
 num-epochs: 1
 stage-2-epochs: 2
 batch-size: 1
-gradient-accumulation-steps: 4
+gradient-accumulation-steps: 8
 learning-rate: 1.e-6
 warmup-ratio: 0.03
 lr-scheduler: cosine

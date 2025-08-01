@@ -191,6 +191,10 @@ class MiCRoLlamaDecoderLayer(nn.Module):
                     past_key_value.update(key_states, value_states, self.layer_idx * self.num_experts + expert_idx, cache_kwargs)
 
                 continue
+            
+            # if hidden_states.shape[1] == 1:
+            #     breakpoint()
+            # print(hidden_states.shape)
         
             current_hidden_states = expert_layer(
                 hidden_states=hidden_states,
@@ -222,7 +226,6 @@ class MiCRoLlama(LlamaPreTrainedModel, GenerationMixin):
         self.config.torch_dtype = torch.bfloat16
         self.config.use_bfloat16 = True
         self.config._attn_implementation = "flash_attention_2" # {sdpa, flash_attention_2, eager}
-        self.config.use_cache = True
         self.config.backbone_num_layers = self.config.num_hidden_layers
         self.config.num_hidden_layers = self.config.num_hidden_layers * run_config["num-experts"]
         self.config.loss_type = "ForCausalLMLoss"

@@ -12,5 +12,7 @@ scipy==1.16.1
 seaborn==0.13.2
 torch==2.7.1
 tqdm==4.67.1
-transformers==4.54.0
+transformers==4.53.2
 trl==0.15.2
+flash_attn==2.8.2
+wandb

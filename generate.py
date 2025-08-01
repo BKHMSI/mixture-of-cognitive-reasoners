@@ -67,6 +67,8 @@ def generate_continuation(model,
         stop_strings=["</s>","<|eot_id|>"],
         tokenizer=tokenizer,
         pad_token_id=tokenizer.pad_token_id,
+        temperature=0,
+        top_p=1.0,
         do_sample=False,
     )
     
@@ -106,7 +108,7 @@ def build_model(config, args, use_cache=True):
 
     model_config.torch_dtype = torch.bfloat16
     model_config.use_bfloat16 = True
-    model_config._attn_implementation = "flash_attention_2"
+    model_config._attn_implementation = "flash_attention_2" #"flash_attention_2"
     model_config.use_cache = use_cache
     model_config.ablate = args.ablate.split(",")
 
@@ -155,9 +157,10 @@ if __name__ == "__main__":
         config_raw = file.read()
         config = yaml.load(config_raw, Loader=yaml.FullLoader)
 
-    model, tokenizer = build_model(config, args, use_cache=True)
+    use_cache = True
+    model, tokenizer = build_model(config, args, use_cache=use_cache)
 
-    prompt = args.prompt if args.prompt != "" else "What is the Mixture of Experts (MoE) model?"
+    prompt = args.prompt if args.prompt != "" and args.prompt is not None else "What is the Mixture of Experts (MoE) model?"
     # prompt = "Solve the following equation 2x+8=-2?
     # prompt = "Ahmed and Sarah are playing a game. Sarah loses the game and feels sad. Ahmed notices that Sarah is quiet and looking down.\n\nQuestion: What should Ahmed do next?"
     # prompt = "What is the capital of Egypt?"
@@ -168,7 +171,7 @@ if __name__ == "__main__":
     print(chat_prompt[-1]["content"])
     print("=="*50)
     
-    generation, token_ids, routing_weights, _ = generate_continuation(model, tokenizer, chat_prompt, max_tokens=384, use_cache=use_cache)
+    generation, token_ids, routing_weights, _ = generate_continuation(model, tokenizer, chat_prompt, max_tokens=128, use_cache=use_cache)
     print(generation[0])
 
     token_map = aggregate_routing_weights(routing_weights, tokenizer)
