@@ -1,8 +1,8 @@
-run-title: llama-moe-top1-tuluv3-plus-experts-1
+run-title: llama-mob-top1-tuluv3-plus-experts-2
 
 resume: False 
 resume-path: ./ckpts
-model: llama-moe
+model: micro-llama
 random-labels: False
 
 dataset: tuluv3-plus-experts # {experts, tuluv3, medical-sft}
@@ -12,7 +12,7 @@ num-experts: 4
 top-k-experts: 1
 jitter-noise: 0
 router-aux-loss-coef: 0.001
-use-load-balancing: True
+use-load-balancing: False
 use-router: True
 mask-input: True
 max-length: 4096

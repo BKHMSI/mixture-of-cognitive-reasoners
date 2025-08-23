@@ -1,11 +1,15 @@
 import os
 import wandb
 import yaml
+import torch 
+import random 
 import argparse
+import numpy as np
 
 from dotenv import load_dotenv
 from trl import DPOConfig, DPOTrainer
 from transformers import AutoTokenizer, AutoConfig, AutoModelForCausalLM
+from transformers import set_seed as hf_set_seed
 
 from data_utils.train_datasets import Tulu2p5DPO
 from glob import glob
@@ -15,6 +19,21 @@ from models.micro_olmo import MiCRoOLMo
 
 load_dotenv()
 WANDB_API_KEY = os.getenv("WANDB_API_KEY", None)
+
+def set_seed(seed: int):
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    # Prefer strict deterministic algorithms when available (PyTorch >= 1.8+)
+    try:
+        torch.use_deterministic_algorithms(True)
+    except AttributeError:
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+    # Also set transformers' RNGs
+    hf_set_seed(seed)
 
 if __name__ == "__main__":
 
@@ -27,7 +46,11 @@ if __name__ == "__main__":
                         help='Use WANDB')
     parser.add_argument('--cuda', type=int, default=None,
                         help='cuda device number')
+    parser.add_argument('--seed', type=int, default=42,
+                        help='random seed')
     args = parser.parse_args()
+
+    set_seed(seed=args.seed)
 
     with open(args.config, 'r', encoding="utf-8") as file:
         config_raw = file.read()

@@ -8,7 +8,7 @@ import torch.nn.functional as F
 import torch.distributed as dist
 
 # from transformers.utils import TransformerKwargs
-from transformers import LlamaConfig, AutoTokenizer, AutoModelForCausalLM
+from transformers import LlamaConfig, AutoConfig, AutoTokenizer, AutoModelForCausalLM
 from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 from transformers.models.llama.modeling_llama import (
     LlamaRotaryEmbedding, 
@@ -27,6 +27,7 @@ from transformers.modeling_flash_attention_utils import FlashAttentionKwargs
 from transformers.processing_utils import Unpack
 from transformers.utils import is_torchdynamo_compiling
 from models.modules import CausalLMOutputWithPast
+from transformers.modeling_layers import GradientCheckpointingLayer
 
 logger = logging.getLogger(__name__)
 
@@ -82,8 +83,19 @@ def _prepare_4d_causal_attention_mask_with_cache_position(
 
     return causal_mask
 
+class MiCRoLlamaConfig(LlamaConfig):
+    model_type = "micro_llama"
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.num_experts = kwargs.get("num_experts", 4)
+        self.use_router = kwargs.get("use_router", True)
+        self.num_experts_per_tok = kwargs.get("num_experts_per_tok", 2)
+        self.jitter_noise = kwargs.get("jitter_noise", 0.0)
+        self.loss_method = kwargs.get("loss_method", "all")
+        self.config_path = kwargs.get("config_path", None)
+        
 class MiCRoLlamaDecoderLayer(nn.Module):
-    def __init__(self, config: LlamaConfig, layer_idx: int):
+    def __init__(self, config: MiCRoLlamaConfig, layer_idx: int):
         super().__init__()
         self.hidden_dim = config.hidden_size
         self.ffn_dim = config.intermediate_size
@@ -93,6 +105,7 @@ class MiCRoLlamaDecoderLayer(nn.Module):
         self.ablate = config.ablate
         self.num_key_value_heads = config.num_key_value_heads
         self.head_dim = self.hidden_dim // config.num_attention_heads
+        self.gradient_checkpointing = config.gradient_checkpointing
         if isinstance(self.ablate, str):
             self.ablate = [self.ablate]
 
@@ -192,37 +205,48 @@ class MiCRoLlamaDecoderLayer(nn.Module):
 
                 continue
             
-            # if hidden_states.shape[1] == 1:
-            #     breakpoint()
-            # print(hidden_states.shape)
-        
-            current_hidden_states = expert_layer(
-                hidden_states=hidden_states,
-                attention_mask=attention_mask,
-                position_ids=position_ids,
-                past_key_value=past_key_value,
-                output_attentions=output_attentions,
-                use_cache=use_cache,
-                cache_position=cache_position,
-                position_embeddings=position_embeddings,
-                **kwargs,
-            )[0]
+            if self.gradient_checkpointing and self.training:
+                current_hidden_states = self._gradient_checkpointing_func(
+                    expert_layer.__call__,
+                    hidden_states,
+                    attention_mask,
+                    position_ids,
+                    past_key_value,
+                    output_attentions,
+                    use_cache,
+                    cache_position,
+                    position_embeddings,
+                )[0]
+            else:
+                current_hidden_states = expert_layer(
+                    hidden_states=hidden_states,
+                    attention_mask=attention_mask,
+                    position_ids=position_ids,
+                    past_key_value=past_key_value,
+                    output_attentions=output_attentions,
+                    use_cache=use_cache,
+                    cache_position=cache_position,
+                    position_embeddings=position_embeddings,
+                    **kwargs,
+                )[0]
+            
             
             flat_idx = batch_indices * sequence_length + seq_indices
             expert_weights = routing_weights[batch_indices, seq_indices, top_k_indices].unsqueeze(-1)
             current_hidden_states = current_hidden_states[batch_indices, seq_indices] * expert_weights
 
             final_hidden_states_2d.index_add_(0, flat_idx, current_hidden_states.to(hidden_states.dtype))
-
+       
         final_hidden_states = final_hidden_states_2d.view(batch_size, sequence_length, hidden_dim)
         return final_hidden_states, router_logits
     
 class MiCRoLlama(LlamaPreTrainedModel, GenerationMixin):
-    def __init__(self, config):
+    config_class = MiCRoLlamaConfig
+    def __init__(self, config: MiCRoLlamaConfig):
         with open(config.config_path, 'r', encoding="utf-8") as file:
             run_config = yaml.load(file.read(), Loader=yaml.FullLoader)
 
-        self.config: LlamaConfig = config
+        self.config: MiCRoLlamaConfig = config
         self.config.torch_dtype = torch.bfloat16
         self.config.use_bfloat16 = True
         self.config._attn_implementation = "flash_attention_2" # {sdpa, flash_attention_2, eager}
@@ -230,10 +254,6 @@ class MiCRoLlama(LlamaPreTrainedModel, GenerationMixin):
         self.config.num_hidden_layers = self.config.num_hidden_layers * run_config["num-experts"]
         self.config.loss_type = "ForCausalLMLoss"
         
-        self.tokenizer = AutoTokenizer.from_pretrained(run_config["tokenizer"])
-        self.assistant_header_ids = torch.tensor(self.tokenizer.encode("<|start_header_id|>assistant<|end_header_id|>")[1:])
-        self.user_header_ids = torch.tensor(self.tokenizer.encode("<|start_header_id|>user<|end_header_id|>")[1:])
-
         super(MiCRoLlama, self).__init__(self.config)
         self.build_model(run_config)
 
@@ -245,9 +265,11 @@ class MiCRoLlama(LlamaPreTrainedModel, GenerationMixin):
         self.config.num_experts_per_tok = run_config["top-k-experts"]
         self.config.jitter_noise = run_config["jitter-noise"]
         self.config.loss_method = run_config.get("loss", "all")
+        self.config.gradient_checkpointing = run_config.get("gradient-checkpointing", False)
+        print(f">> Gradient Checkpointing: {self.config.gradient_checkpointing}")
 
         self.run_config = run_config
-        self.padding_idx = 128004
+        self.padding_idx = 2 if "smollm2" in run_config["model"] else 128004
         
         # MiCRoLlama model
         self.embed_tokens = nn.Embedding(self.config.vocab_size, self.config.hidden_size, self.padding_idx)
@@ -257,39 +279,38 @@ class MiCRoLlama(LlamaPreTrainedModel, GenerationMixin):
         self.final_norm = LlamaRMSNorm(self.config.hidden_size, eps=self.config.rms_norm_eps)
 
         # Freeze Model
-        for param in self.parameters():
-            param.requires_grad = False
+        # for param in self.parameters():
+        #     param.requires_grad = False
 
         # Unfreeze Modules
-        if "reasoners" in run_config["trainable"]:
-            print(">> Unfreezing Reasoning Modules")
-            for layer in self.layers:
-                for param in layer.experts.parameters():
-                    param.requires_grad = True
+        # if "reasoners" in run_config["trainable"]:
+        #     print(">> Unfreezing Reasoning Modules")
+        #     for layer in self.layers:
+        #         for param in layer.experts.parameters():
+        #             param.requires_grad = True
 
-        if "model" in run_config["trainable"]:
-            print(">> Unfreezing Model")
-            for param in self.layers.parameters():
-                param.requires_grad = True
+        # if "model" in run_config["trainable"]:
+        #     print(">> Unfreezing Model")
+        #     for param in self.layers.parameters():
+        #         param.requires_grad = True
 
-            for param in self.lm_head.parameters():
-                param.requires_grad = True
+        #     for param in self.lm_head.parameters():
+        #         param.requires_grad = True
 
-            for param in self.rotary_emb.parameters():
-                param.requires_grad = True
+        #     for param in self.rotary_emb.parameters():
+        #         param.requires_grad = True
 
-            for param in self.final_norm.parameters():
-                param.requires_grad = True
+        #     for param in self.final_norm.parameters():
+        #         param.requires_grad = True
 
-            for param in self.embed_tokens.parameters():
-                param.requires_grad = True
+        #     for param in self.embed_tokens.parameters():
+        #         param.requires_grad = True
 
-            for layer in self.layers:
-                for param in layer.gate.parameters():
-                    param.requires_grad = False
+        for layer in self.layers:
+            for param in layer.gate.parameters():
+                param.requires_grad = False
 
-
-        if "experts-router" in run_config["trainable"]:
+        if "experts-router" in run_config["trainable"] or "model" in run_config["trainable"]:
             print(">> Unfreezing Experts Router")
             for layer in self.layers:
                 for param in layer.gate.parameters():
@@ -358,18 +379,19 @@ class MiCRoLlama(LlamaPreTrainedModel, GenerationMixin):
         all_self_attns = () if output_attentions else None
 
         all_routing_weights = ()
-
+ 
         for decoder_layer in self.layers:
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)
 
-            if self.gradient_checkpointing and self.training:
+            if self.gradient_checkpointing and self.training and False:
                 layer_outputs, router_logits = self._gradient_checkpointing_func(
                     decoder_layer.__call__,
                     hidden_states,
                     routing_weights,
                     causal_mask,
                     position_ids,
+                    experts_ablate,
                     past_key_values,
                     output_attentions,
                     use_cache,
@@ -578,3 +600,7 @@ class MiCRoLlama(LlamaPreTrainedModel, GenerationMixin):
             }
         )
         return model_inputs
+
+
+AutoConfig.register("micro_llama", MiCRoLlamaConfig)
+AutoModelForCausalLM.register(MiCRoLlamaConfig, MiCRoLlama)

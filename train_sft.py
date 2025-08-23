@@ -1,16 +1,21 @@
 import os
 import wandb
 import yaml
+import torch
+import random
 import argparse
+import deepspeed
+import numpy as np
 import multiprocessing
 
 from glob import glob
 from dotenv import load_dotenv
 from transformers import AutoConfig, AutoTokenizer, AutoModelForCausalLM
+from transformers import set_seed as hf_set_seed
 from trl import SFTConfig, SFTTrainer
 
 from data_utils.data_collator import DataCollatorForCompletionLM
-from data_utils.train_datasets import Tuluv3SftMixture, ExpertsDataset, MeditronSFT
+from data_utils.train_datasets import Tuluv3SftMixture, Tuluv3SftPlusExperts, ExpertsDataset, MeditronSFT
 
 from models.micro_llama import MiCRoLlama
 from models.micro_olmo import MiCRoOLMo
@@ -19,6 +24,27 @@ from models.moe_llama import LlamaMoE
 load_dotenv()
 WANDB_API_KEY = os.getenv("WANDB_API_KEY", None)
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+torch.serialization.add_safe_globals([deepspeed.runtime.fp16.loss_scaler.LossScaler])
+torch.serialization.add_safe_globals([deepspeed.runtime.zero.config.ZeroStageEnum])
+# torch.serialization.add_safe_globals([deepspeed.utils.tensor_fragment.get_hp_fragment_address()])
+
+_orig_load = torch.load
+def _load(*args, **kwargs):
+    kwargs.setdefault("weights_only", False)
+    return _orig_load(*args, **kwargs)
+torch.load = _load
+
+def set_seed(seed: int):
+    os.environ["PYTHONHASHSEED"] = str(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)    
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    # Also set transformers' RNGs
+    hf_set_seed(seed)
 
 if __name__ == "__main__":
 
@@ -33,7 +59,11 @@ if __name__ == "__main__":
                         help='Use WANDB')
     parser.add_argument('--cuda', type=int, default=None,
                         help='cuda device number')
+    parser.add_argument('--seed', type=int, default=42,
+                        help='random seed')
     args = parser.parse_args()
+
+    set_seed(seed=args.seed)
 
     with open(args.config, 'r', encoding="utf-8") as file:
         config_raw = file.read()
@@ -63,10 +93,18 @@ if __name__ == "__main__":
         tokenizer.pad_token_id = 100277
         num_new_tokens = tokenizer.add_special_tokens({'additional_special_tokens': ['\n<|assistant|>\n']})
         print(">> Adding <|assistant|> token")
+    elif "smollm2-baseline" in config["model"]:
+        print(">> Using SmolLM2 model baseline")
+        model_class = AutoModelForCausalLM
+        tokenizer.pad_token_id = 2
     elif config["model"] == "micro-llama":
         print(">> Using MiCRo-Llama")
         model_class = MiCRoLlama
         tokenizer.pad_token_id = 128004
+    elif "micro-smollm2" in config["model"]:
+        print(">> Using MiCRo-SmolLM2")
+        model_class = MiCRoLlama
+        tokenizer.pad_token_id = 2
     elif config["model"] == "llama-moe":
         print(">> Using Llama MoE")
         model_class = LlamaMoE
@@ -112,6 +150,11 @@ if __name__ == "__main__":
         valid_dataset = None
         eval_strategy = "no"
         load_best_model_at_end = False
+    elif config["dataset"] == "tuluv3-plus-experts":
+        train_dataset = Tuluv3SftPlusExperts(config)
+        valid_dataset = None
+        eval_strategy = "no"
+        load_best_model_at_end = False
     elif config["dataset"] == "medical-sft":
         train_dataset = MeditronSFT(config)
         valid_dataset = None
@@ -131,12 +174,21 @@ if __name__ == "__main__":
         report_to = "none"
         print(">> WANDB is not enabled")
 
-    if "stage-3" not in run_title:
-        save_strategy = "epoch"
-        save_steps = 1
+    if config.get("gradient-checkpointing", False):
+        print(f"> Enabling Gradient Checkpointing!")
+        gradient_checkpointing = True 
+        model.config.use_cache = False
+        model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
+        # model.enable_input_require_grads()
     else:
-        save_strategy = "steps"
-        save_steps = config.get("save-steps", 0.25)
+        gradient_checkpointing = False
+
+    # if "stage-3" not in run_title:
+    #     save_strategy = "epoch"
+    #     save_steps = 1
+    # else:
+    save_strategy = "steps"
+    save_steps = config.get("save-steps", 0.25)
 
     training_args = SFTConfig(
         output_dir=save_path,
@@ -148,12 +200,12 @@ if __name__ == "__main__":
         save_steps=save_steps,
         save_total_limit=50,
         load_best_model_at_end=load_best_model_at_end,
-        dataloader_num_workers=8,
+        dataloader_num_workers=8 if not config["debug"] else 0,
         learning_rate=config["learning-rate"],
         per_device_train_batch_size=config["batch-size"],
         per_device_eval_batch_size=config["batch-size"],
         gradient_accumulation_steps=config["gradient-accumulation-steps"],
-        gradient_checkpointing=False,
+        gradient_checkpointing=gradient_checkpointing, # changed from False to True for large models
         num_train_epochs=config["num-epochs"],
         weight_decay=0.01,
         report_to=report_to,
@@ -163,6 +215,7 @@ if __name__ == "__main__":
         warmup_ratio=config["warmup-ratio"],
         max_seq_length=config["max-length"],
         remove_unused_columns=True,
+        save_safetensors=True
     )
     
     resume_from_ckpt = len(glob(os.path.join(save_path, "checkpoint-*"))) > 0

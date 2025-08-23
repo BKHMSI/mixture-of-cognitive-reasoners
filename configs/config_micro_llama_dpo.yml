@@ -1,8 +1,8 @@
-run-title: llama-mxtr-1b-base-top1-tuluv3-15 #-dpo-4
+run-title: llama-mxtr-1b-base-top1-tuluv3-15-dpo-4
 
 resume: False 
-resume-path: llama-mxtr-1b-base-top1-tuluv3-15/stage-3/checkpoint-29354
-model: micro-llama
+resume-path: llama-mxtr-1b-base-top1-tuluv3-15-dpo-4/stage-3/checkpoint-29354
+model: micro-llama-dpo
 random-labels: False
 
 dataset: medical-sft # {experts, tuluv3, medical-sft}

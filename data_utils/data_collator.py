@@ -46,6 +46,11 @@ class DataCollatorForCompletionLM(DataCollatorForLanguageModeling):
                     self.tokenizer.add_special_tokens({'additional_special_tokens': [response_template]})
 
                 self.seq_seperator_id = 100266
+            elif model_name and "smollm2" in model_name:
+                # Default response template for SmolLM2
+                print(f">> Using SmolLM2 response template")
+                response_template = "<|im_start|>assistant"
+                self.seq_seperator_id = 5
             else:
                 # Default response template for Llama-3
                 print(f">> Using Llama3 response template")
@@ -68,15 +73,20 @@ class DataCollatorForCompletionLM(DataCollatorForLanguageModeling):
             self.response_token_ids = response_template
 
         self.ignore_index = ignore_index
+        self.max_length = self.tokenizer.model_max_length
         
         
     def torch_call(self, examples: List[Union[List[int], Any, Dict[str, Any]]]) -> Dict[str, Any]:
-        batch = pad_without_fast_tokenizer_warning(
-            self.tokenizer, examples, return_tensors="pt", pad_to_multiple_of=self.pad_to_multiple_of
-        )
+        
+        routing_weights = [ex.pop("routing_weights", None) for ex in examples]
+
+        batch = pad_without_fast_tokenizer_warning(self.tokenizer, examples, return_tensors="pt", pad_to_multiple_of=self.pad_to_multiple_of)
 
         input_ids = batch["input_ids"]
         attention_mask = batch["attention_mask"]
+        if routing_weights[0] is not None:
+            batch["routing_weights"] = routing_weights
+
         # Make first 0 token of attention mask to 1
         labels = input_ids.clone()
 
@@ -111,7 +121,7 @@ class DataCollatorForCompletionLM(DataCollatorForLanguageModeling):
                             rand_label = torch.eye(4)[torch.randint(0, 4, (1,)).item()].long()
                             routing_weights_seq.append(rand_label)
                         else:
-                            routing_weights_seq.append(batch["routing_weights"][i][routing_weights_idx].long().flatten())
+                            routing_weights_seq.append(torch.tensor(batch["routing_weights"][i][routing_weights_idx]).long().flatten())
                     else:
                         if self.random_router_labels:
                             rand_label = torch.eye(4)[torch.randint(0, 4, (1,)).item()].long()
@@ -122,9 +132,51 @@ class DataCollatorForCompletionLM(DataCollatorForLanguageModeling):
                 routing_weights_batch.append(torch.stack(routing_weights_seq))
 
         batch_size = input_ids.shape[0]
+        max_seq_len = input_ids.shape[1]
+
         labels = labels[input_ids != self.seq_seperator_id].reshape(batch_size, -1)
         attention_mask = attention_mask[input_ids != self.seq_seperator_id].reshape(batch_size, -1)
         input_ids = input_ids[input_ids != self.seq_seperator_id].reshape(batch_size, -1)
+
+        # clean_labels = []
+        # clean_input_ids = []
+        # clean_attn_mask = []
+        # clean_routing_weights = []
+
+        # for batch_idx in range(batch_size):
+        #     seq_len = labels[batch_idx, input_ids[batch_idx] != self.seq_seperator_id].shape[0]
+        #     clean_labels.append(
+        #         torch.cat([
+        #             torch.zeros(max_seq_len - seq_len),
+        #             labels[batch_idx, input_ids[batch_idx] != self.seq_seperator_id]
+        #         ], dim=0)
+        #     )
+
+        #     clean_input_ids.append(
+        #         torch.cat([
+        #             torch.zeros(max_seq_len - seq_len),
+        #             input_ids[batch_idx, input_ids[batch_idx] != self.seq_seperator_id]
+        #         ], dim=0)
+        #     )
+
+        #     clean_attn_mask.append(
+        #         torch.cat([
+        #             torch.zeros(max_seq_len - seq_len),
+        #             attention_mask[batch_idx, input_ids[batch_idx] != self.seq_seperator_id]
+        #         ], dim=0)
+        #     )
+
+        #     if "routing_weights" in batch:
+        #         clean_routing_weights.append(
+        #             torch.cat([torch.zeros((max_seq_len - routing_weights_batch[batch_idx].shape[0]), 4), routing_weights_batch[batch_idx]], dim=0)
+        #         )
+
+        # labels = torch.stack(clean_labels).long().to(labels.device)
+        # input_ids = torch.stack(clean_input_ids).long().to(input_ids.device)
+        # attention_mask = torch.stack(clean_attn_mask).long().to(attention_mask.device)
+        # routing_weights_batch = torch.stack(clean_routing_weights).long().to(input_ids.device) if "routing_weights" in batch else None
+
+        # labels[attention_mask == 0] = self.ignore_index
 
         if "routing_weights" in batch:
             routing_weights_batch = torch.stack(routing_weights_batch)[:, :-1]

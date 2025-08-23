@@ -33,6 +33,71 @@ class MeditronSFT(Dataset):
         unique_datasets = np.unique(self.hf_dataset["dataset"])
         self.hf_dataset = self.hf_dataset.filter(lambda x: x["dataset"] in filter_datasets)
 
+class Tuluv3SftPlusExperts(Dataset):
+    def __init__(self, config):
+        tulu3_sft_mixture = Tuluv3SftMixture(config)
+        dirpath = Path(__file__).parent.parent
+
+        paths = [
+            "generations/openai_pseudo_labels_v2_cleaned.json",
+            "generations/openai_bigtom_pseudo_labels_v3_cleaned.json",
+        ]
+
+        paths = [os.path.join(dirpath, path) for path in paths]
+        
+        self.datasets = []
+        remove_datasets = []
+
+        for path in paths:
+            self.datasets.extend(read_json(path))
+
+        print(f"> Loaded {len(self.datasets)} samples")
+
+        self.filter_datasets(remove_datasets)
+        experts_data = self.build_dataset()
+        
+        print(f"> Built experts mixture dataset with {len(experts_data['messages'])} samples")
+        print(f"> Tulu3 SFT mixture dataset contains {len(tulu3_sft_mixture.hf_dataset)} samples")
+        
+        self.experts_mixture = datasets.Dataset.from_dict(experts_data)
+
+        self.hf_dataset = datasets.concatenate_datasets(
+            [self.experts_mixture, tulu3_sft_mixture.hf_dataset, self.experts_mixture]
+        )
+
+        print(f"> Final dataset contains {len(self.hf_dataset)} samples")
+
+
+    def filter_datasets(self, remove_datasets):
+        filtered_datasets = []
+        existing_datasets = set()
+        for dataset in self.datasets:
+            if dataset["dataset"] not in remove_datasets:
+                filtered_datasets.append(dataset)
+                existing_datasets.add(dataset["dataset"])
+            
+        self.datasets = filtered_datasets
+        print(f"> Existing datasets: {existing_datasets}")
+        print(f"> Filtered samples: {len(self.datasets)}")
+
+    def build_dataset(self):
+        data = {"id": [], "messages": [], "source": []}
+        for index in range(len(self.datasets)):
+            user_prompt = self.datasets[index]["prompt"]
+            if isinstance(user_prompt, list):
+                system_prompt = user_prompt[0]["content"]
+                user_prompt = system_prompt + '\n\n' + user_prompt[1]["content"] 
+            assistant_response = self.datasets[index]["assistant"]
+            data["messages"].append([
+                {"role": "user", "content": user_prompt},
+                {"role": "assistant", "content": assistant_response}
+            ])
+
+            data["source"].append(self.datasets[index]["dataset"])
+            data["id"].append(f"{self.datasets[index]['dataset']}_{index}")
+
+        return data
+
 class Tuluv3SftMixture(Dataset):
     def __init__(self, config):
         data_path = "tulu-3-sft-mixture-full"
@@ -76,6 +141,8 @@ class ExpertsDataset(Dataset):
             self.seq_seperator = "<|file_sep|>"
         elif "OLMo" in config["tokenizer"]:
             self.seq_seperator = "<|extra_id_1|>"
+        elif "SmolLM2" in config["tokenizer"]:
+            self.seq_seperator = "<file_sep>"
 
         if self.random_labels:
             print(">> Using random labels for routing weights")
@@ -153,4 +220,4 @@ class ExpertsDataset(Dataset):
 
 if __name__ == "__main__":
     #  dataset = Tulu2p5DPO(config={})
-    _ = MeditronSFT(config={})
+    _ = Tuluv3SftPlusExperts(config={})
