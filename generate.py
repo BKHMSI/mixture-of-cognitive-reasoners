@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 from models.micro_llama import MiCRoLlama
 from models.micro_olmo import MiCRoOLMo
 from models.moe_llama import LlamaMoE
+from models.micro_moe_llama import MiCRoLlamaMoE
 from utils.generate_html import generate_html
 
 from transformers import AutoTokenizer, AutoConfig
@@ -104,30 +105,64 @@ def generate_continuation(model,
     gen_token_ids = outputs[:, inputs.shape[1]:]
     return (generations, routing_weights) if return_routing_weights else generations
 
+def write_txt(filename, text):
+    with open(filename, 'w', encoding='utf-8') as f:
+        f.write(text)
 
 def model_path(model_name):
     return {
-        "llama-moe": ("ckpts/llama-moe-top1-tuluv3-1/checkpoint-29355", LlamaMoE),
-        "micro-llama": ("bkhmsi/micro-llama", MiCRoLlama),
-        "micro-llama-dpo": ("ckpts/llama-mxtr-1b-base-top1-tuluv3-15-dpo-4/checkpoint-36850", MiCRoLlama),
-        "micro-olmo": ("bkhmsi/micro-olmo", MiCRoOLMo),
-        "micro-smollm2-135m": ("ckpts/micro-smollm2-135m-2/stage-3/checkpoint-29355", MiCRoLlama),
-        # "micro-smollm2-360m": ("ckpts/micro-smollm2-360m-1/stage-3/checkpoint-29355", MiCRoLlama),
-        "micro-smollm2-360m": ("ckpts/micro-smollm2-360m-v2-1/stage-2/checkpoint-196", MiCRoLlama),
-        "micro-smollm2-1.7b": ("ckpts/micro-smollm2-1.7b-2/stage-2/checkpoint-196", MiCRoLlama),
+        # MiCRo-Llama
+        "micro-llama-1b": ("bkhmsi/micro-llama-1b", MiCRoLlama),
+        "micro-llama-3b": ("bkhmsi/micro-llama-3b", MiCRoLlama),
+        "micro-llama-1b-dpo": ("bkhmsi/micro-llama-1b-dpo", MiCRoLlama),
+
+        # MiCRo-MoE-Llama
+        "micro-moe-llama-1b": ("bkhmsi/micro-moe-llama-1b", MiCRoLlamaMoE),
+        
+        # MiCRo-OLMo
+        "micro-olmo": ("bkhmsi/micro-olmo-1b", MiCRoOLMo),
+
+        # MiCRo-SmolLM2
+        "micro-smollm2-135m": ("bkhmsi/micro-smollm2-135m", MiCRoLlama),
+        "micro-smollm2-360m": ("bkhmsi/micro-smollm2-360m", MiCRoLlama),
+
+        # MiCRo-MoE-SmolLM2
+        "micro-moe-smollm2-135m": ("bkhmsi/micro-moe-smollm2-135m", MiCRoLlamaMoE),
+        "micro-moe-smollm2-360m": ("bkhmsi/micro-moe-smollm2-360m", MiCRoLlamaMoE),
+
+        # Training Checkpoints
+        "micro-llama-ckpt-0": ("/ckpts/llama-mxtr-1b-base-top1-tuluv3-15/stage-2/checkpoint-194", MiCRoLlama),
+        "micro-llama-ckpt-1": ("/ckpts/llama-mxtr-1b-base-top1-tuluv3-15/stage-3/checkpoint-7339", MiCRoLlama),
+        "micro-llama-ckpt-2": ("/ckpts/llama-mxtr-1b-base-top1-tuluv3-15/stage-3/checkpoint-14678", MiCRoLlama),
+        "micro-llama-ckpt-3": ("/ckpts/llama-mxtr-1b-base-top1-tuluv3-15/stage-3/checkpoint-22017", MiCRoLlama),
+        "micro-llama-ckpt-4": ("/ckpts/llama-mxtr-1b-base-top1-tuluv3-15/stage-3/checkpoint-29354", MiCRoLlama),
+
+        # Other
+        "llama-moe": ("ckpts/llama-moe-top1-tuluv3-plus-experts-1/checkpoint-29550", LlamaMoE),
+        "llama-mob": ("ckpts/llama-mob-top1-tuluv3-plus-experts-2/checkpoint-29549", MiCRoLlama),        
+        "micro-moe-llama-3b": ("ckpts/micro-moe-llama-3b-1/stage-2/checkpoint-196", MiCRoLlamaMoE),
+        "micro-moe-llama-top4": ("ckpts/micro-moe-llama-top4-1/stage-3/checkpoint-29354", MiCRoLlamaMoE),
+        "micro-smollm2-1.7b": ("ckpts/micro-smollm2-1.7b-2/stage-3/checkpoint-29355", MiCRoLlama),
+        "smollm2-mob-1.7b": ("ckpts/smollm2-mob-1.7b-1/checkpoint-29550", MiCRoLlama),
+        "micro-moe-smollm2-1.7b": ("ckpts/micro-smollm2-moe-1.7b-1/stage-2/checkpoint-196", MiCRoLlamaMoE),
     }[model_name]
 
 def build_model(config, args, use_cache=True):
     model_config = AutoConfig.from_pretrained(config["base-model"])
-    model_config.config_path = f"configs/{args.config}"
+    model_config.config_path = f"../mixture-of-reasoners/configs/{args.config}"
 
     model_config.torch_dtype = torch.bfloat16
     model_config.use_bfloat16 = True
-    model_config._attn_implementation = "flash_attention_2" #"flash_attention_2"
+    model_config._attn_implementation = "flash_attention_2"
     model_config.use_cache = use_cache
     model_config.ablate = args.ablate.split(",")
+    print(f"> Ablating experts: {model_config.ablate}")
+
+    if config["top-k-experts"] != 1:
+        config["model"] += f"-top{config['top-k-experts']}"
 
     path, model_class = model_path(config["model"])
+    print(f"> Loading model from {path}")
 
     tokenizer = AutoTokenizer.from_pretrained(config["tokenizer"])
     tokenizer.padding_side = "left"
@@ -161,6 +196,8 @@ if __name__ == "__main__":
                         default=None, help='input prompt')
     parser.add_argument('--ablate',  type=str,
                         default="none", help='expert to ablate')
+    parser.add_argument('--output_file',  type=str,
+                        default='data/output.txt', help='output file to save generations')
     
     args = parser.parse_args()
 
@@ -172,20 +209,14 @@ if __name__ == "__main__":
     model, tokenizer = build_model(config, args, use_cache=use_cache)
 
     prompt = args.prompt if args.prompt != "" and args.prompt is not None else "What is the Mixture of Experts (MoE) model?"
-    # prompt = "Solve the following equation: 3x + 4 = 10."
-    prompt = "Ahmed and Sarah are playing a game. Sarah loses the game and feels sad. Ahmed notices that Sarah is quiet and looking down.\n\nQuestion: What should Ahmed do next?"
-    # prompt = "What is the capital of the country that is west of Egypt? Think step by step."
-    prompt = "Sally and Anne are in a room together. Sally places her chocolate bar inside a blue box and then leaves the room. While she is gone, Anne moves the chocolate bar from the blue box to a red box. When Sally returns,\nQuestion: Where does Sally think the chocolate bar is? Let's think step by step."
-    # prompt = "Q: Janet's ducks lay 16 eggs per day. She eats three for breakfast every morning and bakes muffins for her friends every day with four. She sells the remainder at the farmers' market daily for $2 per fresh duck egg. How much in dollars does she make every day at the farmers' market?\nThink step by step and then finish your answer with \"The answer is X\" where X is the final answer."
 
     chat_prompt = [{'role': 'user', 'content': prompt}]
 
     print(chat_prompt[-1]["content"])
     print("=="*50)
 
-    generation, routing_weights = generate_continuation(model, tokenizer, chat_prompt, max_tokens=150, use_cache=use_cache)
-    print(generation)
+    generation, routing_weights = generate_continuation(model, tokenizer, chat_prompt, max_tokens=512, use_cache=use_cache)
+    print(generation[0])
 
-    # token_map = aggregate_routing_weights(routing_weights, tokenizer)
-    # generate_html(prompt, token_map)
+    write_txt(args.output_file, generation[0])
 

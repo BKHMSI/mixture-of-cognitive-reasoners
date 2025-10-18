@@ -1,0 +1,50 @@
+{"user": "What is 27 multiplied by 14?", "assistant": "First, break it down: 27 * 10 = 270. Then 27 * 4 = 108. Add them together: 270 + 108 = 378. So the answer is 378."}
+{"user": "If a train travels 60 km in 1.5 hours, what is its average speed?", "assistant": "Average speed = distance ÷ time. Distance = 60 km, time = 1.5 hours. 60 ÷ 1.5 = 40. The average speed is 40 km/h."}
+{"user": "Solve for x: 2x + 7 = 15.", "assistant": "Subtract 7 from both sides: 2x = 8. Divide both sides by 2: x = 4."}
+{"user": "What is the next number in the sequence: 2, 4, 8, 16, ...?", "assistant": "Each number is multiplied by 2. After 16, the next is 16 * 2 = 32."}
+{"user": "If you flip a fair coin twice, what is the probability of getting exactly one head?", "assistant": "There are 4 outcomes: HH, HT, TH, TT. Exactly one head occurs in HT and TH, 2 out of 4. Probability = 2/4 = 0.5."}
+{"user": "A rectangle has a length of 12 and a width of 5. What is its area?", "assistant": "Area = length * width = 12 * 5 = 60."}
+{"user": "What is the square root of 144?", "assistant": "The number whose square is 144 is 12. So the square root is 12."}
+{"user": "Solve: 5(2x - 3) = 25.", "assistant": "Expand: 10x - 15 = 25. Add 15: 10x = 40. Divide by 10: x = 4."}
+{"user": "If three people share 48 apples equally, how many apples does each get?", "assistant": "48 ÷ 3 = 16. Each person gets 16 apples."}
+{"user": "What is 15% of 200?", "assistant": "15% means 15/100. Multiply 200 * 0.15 = 30."}
+{"user": "Simplify: (6 * 5) ÷ (3 * 2).", "assistant": "6 * 5 = 30. 3 * 2 = 6. Then 30 ÷ 6 = 5."}
+{"user": "If x = 3, evaluate 2x² + 4x.", "assistant": "x² = 9, so 2 * 9 = 18. 4 * 3 = 12. Total = 18 + 12 = 30."}
+{"user": "How many factors does 18 have?", "assistant": "Factors: 1, 2, 3, 6, 9, 18. That’s 6 factors."}
+{"user": "A car travels 90 km in 2 hours. What is its speed?", "assistant": "Speed = distance ÷ time = 90 ÷ 2 = 45 km/h."}
+{"user": "Solve: 12 ÷ (3 + 1).", "assistant": "3 + 1 = 4. Then 12 ÷ 4 = 3."}
+{"user": "What is the value of 2³ * 3²?", "assistant": "2³ = 8. 3² = 9. Multiply: 8 * 9 = 72."}
+{"user": "If a bag contains 5 red balls and 7 blue balls, what is the probability of picking a red ball?", "assistant": "Total balls = 12. Red = 5. Probability = 5/12."}
+{"user": "Simplify: 48 ÷ 6 ÷ 2.", "assistant": "48 ÷ 6 = 8. Then 8 ÷ 2 = 4."}
+{"user": "If 4 pencils cost $2, how much do 10 pencils cost?", "assistant": "Cost per pencil = 2 ÷ 4 = 0.5. For 10 pencils: 10 * 0.5 = $5."}
+{"user": "What is the least common multiple (LCM) of 6 and 8?", "assistant": "Multiples of 6: 6, 12, 18, 24. Multiples of 8: 8, 16, 24. The first common multiple is 24. So the LCM is 24."}
+{"user": "What is 27 multiplied by 14?", "assistant": "To calculate 27 * 14, break it down: 27 * 10 = 270, and 27 * 4 = 108. Add them: 270 + 108 = 378."}
+{"user": "If a train travels 60 km in 1.5 hours, what is its average speed?", "assistant": "Speed = distance ÷ time. 60 ÷ 1.5 = 40 km/h."}
+{"user": "What is the next number in the sequence: 2, 4, 8, 16, ...?", "assistant": "The pattern doubles each time. After 16 comes 32."}
+{"user": "If 5x = 45, what is x?", "assistant": "Divide both sides by 5: x = 45 ÷ 5 = 9."}
+{"user": "A rectangle has length 12 and width 7. What is its area?", "assistant": "Area = length * width = 12 * 7 = 84."}
+{"user": "If you flip a fair coin three times, how many possible outcomes are there?", "assistant": "Each flip has 2 possibilities. So total = 2 * 2 * 2 = 8 outcomes."}
+{"user": "What is the least common multiple of 6 and 8?", "assistant": "Prime factors: 6 = 2 * 3, 8 = 2³. LCM takes highest powers: 2³ * 3 = 24."}
+{"user": "If 2y + 5 = 15, what is y?", "assistant": "Subtract 5: 2y = 10. Divide by 2: y = 5."}
+{"user": "Simplify: (3² * 3³).", "assistant": "Same base, add exponents: 3^(2+3) = 3^5 = 243."}
+{"user": "If a die is rolled, what is the probability of getting an even number?", "assistant": "There are 3 even outcomes (2,4,6) out of 6 total. Probability = 3/6 = 1/2."}
+{"user": "Solve: 18 ÷ (3 * 2).", "assistant": "Inside parentheses first: 3 * 2 = 6. Then 18 ÷ 6 = 3."}
+{"user": "If a car travels at 90 km/h, how long does it take to go 180 km?", "assistant": "Time = distance ÷ speed = 180 ÷ 90 = 2 hours."}
+{"user": "What is the square root of 225?", "assistant": "Since 15 * 15 = 225, the square root is 15."}
+{"user": "If you have 4 shirts and 3 pants, how many outfits can you make?", "assistant": "Multiply options: 4 * 3 = 12 outfits."}
+{"user": "Simplify: 5³ ÷ 5².", "assistant": "Same base division: subtract exponents. 5^(3-2) = 5¹ = 5."}
+{"user": "If the perimeter of a square is 48, what is the length of each side?", "assistant": "Perimeter = 4 * side. So side = 48 ÷ 4 = 12."}
+{"user": "What is 15% of 200?", "assistant": "15% = 0.15. Multiply: 0.15 * 200 = 30."}
+{"user": "Solve: 7x - 9 = 12.", "assistant": "Add 9: 7x = 21. Divide by 7: x = 3."}
+{"user": "If a box contains 5 red balls and 7 blue balls, what fraction are red?", "assistant": "Total balls = 5 + 7 = 12. Fraction red = 5/12."}
+{"user": "What is 2⁵?", "assistant": "2 * 2 * 2 * 2 * 2 = 32."}
+{"user": "Simplify: (4 * 6) - (3 * 5).", "assistant": "First multiply: 4*6=24, 3*5=15. Then subtract: 24 - 15 = 9."}
+{"user": "If angle A = 40° in a triangle and angle B = 75°, what is angle C?", "assistant": "Triangle sum = 180°. So C = 180 - (40 + 75) = 65°."}
+{"user": "What is 1/3 + 1/6?", "assistant": "Common denominator is 6. 1/3 = 2/6. So 2/6 + 1/6 = 3/6 = 1/2."}
+{"user": "How many prime numbers are less than 10?", "assistant": "Primes <10 are 2,3,5,7. That makes 4 primes."}
+{"user": "If a = 3 and b = 4, what is (a² + b²)?", "assistant": "a²=9, b²=16. Sum = 25."}
+{"user": "What is 120 divided by 8?", "assistant": "120 ÷ 8 = 15."}
+{"user": "Simplify: (2x)(3x).", "assistant": "Multiply coefficients and variables: 2*3=6, x*x=x². So result = 6x²."}
+{"user": "A cube has side length 5. What is its volume?", "assistant": "Volume = side³ = 5³ = 125."}
+{"user": "If you invest $200 at 10% simple interest for 2 years, what is the interest?", "assistant": "Simple interest = P*R*T = 200*0.1*2 = 40."}
+{"user": "What is the median of the set {3, 7, 9, 12, 15}?", "assistant": "Order them (already sorted). The middle value is 9, so median = 9."}

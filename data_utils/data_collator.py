@@ -40,7 +40,7 @@ class DataCollatorForCompletionLM(DataCollatorForLanguageModeling):
             elif model_name and "olmo" in model_name:
                 # Default response template for Olmo2
                 print(f">> Using Olmo2 response template")
-                response_template = "\n<|assistant|>\n"
+                response_template = "<|assistant|>"
                 if len(self.tokenizer.encode(response_template, add_special_tokens=False)) > 1:
                     print(f">> WARNING: Response template is not a single token")
                     self.tokenizer.add_special_tokens({'additional_special_tokens': [response_template]})

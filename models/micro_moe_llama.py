@@ -7,7 +7,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import torch.distributed as dist
 
-from transformers import LlamaConfig, AutoTokenizer, AutoModelForCausalLM, AutoConfig
+from transformers import LlamaConfig, AutoModelForCausalLM, AutoConfig
 from transformers.modeling_attn_mask_utils import AttentionMaskConverter
 from transformers.models.llama.modeling_llama import (
     LlamaRotaryEmbedding, 
@@ -40,8 +40,8 @@ def keep_alive_zero(model):
             z = z + (p.view(-1)[0] * 0.0)
     return z
 
-class LlamaMoEConfig(LlamaConfig):
-    model_type = "llama_moe"
+class MiCRoLlamaMoEConfig(LlamaConfig):
+    model_type = "micro_llama_moe"
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.num_experts = kwargs.get("num_experts", 4)
@@ -109,7 +109,7 @@ class DummyModule(nn.Module):
     def forward(self, x):
         return x
     
-class LlamaSparseMoEBlock(nn.Module):
+class LlamaSparseMiCRoMoEBlock(nn.Module):
     """
     This implementation is
     strictly equivalent to standard MoE with full capacity (no
@@ -127,6 +127,8 @@ class LlamaSparseMoEBlock(nn.Module):
         self.ffn_dim = config.intermediate_size
         self.num_experts = config.num_experts
         self.top_k = config.num_experts_per_tok
+        self.use_router = config.use_router
+        self.ablate = config.ablate
 
         # gating
         self.gate = nn.Sequential(
@@ -137,19 +139,33 @@ class LlamaSparseMoEBlock(nn.Module):
         self.experts = nn.ModuleList([LlamaMLP(config) for _ in range(self.num_experts)])
 
         self.dummy = DummyModule()
+
         # Jitter parameters
         self.jitter_noise = config.jitter_noise
 
-    def forward(self, hidden_states: torch.Tensor) -> torch.Tensor:
+    def forward(self, hidden_states: torch.Tensor, routing_weights: Optional[torch.Tensor] = None) -> torch.Tensor:
         """ """
         batch_size, sequence_length, hidden_dim = hidden_states.shape
         if self.training and self.jitter_noise > 0:
             hidden_states *= torch.empty_like(hidden_states).uniform_(1.0 - self.jitter_noise, 1.0 + self.jitter_noise)
         hidden_states = hidden_states.view(-1, hidden_dim)
+        
+        if self.use_router:
+            router_logits = self.gate(hidden_states)
+            if "logic" in self.ablate:
+                router_logits[..., 0] = -torch.inf
+            if "social" in self.ablate:
+                router_logits[..., 1] = -torch.inf
+            if "world" in self.ablate:
+                router_logits[..., 2] = -torch.inf
+            if "language" in self.ablate:
+                router_logits[..., 3] = -torch.inf
+            routing_weights = F.softmax(router_logits, dim=-1, dtype=torch.float)
+        else:
+            routing_weights = routing_weights.reshape(-1, 4).float()
+            router_logits = routing_weights
         # router_logits: (batch * sequence_length, n_experts)
-        router_logits = self.gate(hidden_states)
-
-        routing_weights = F.softmax(router_logits, dim=1, dtype=torch.float)
+        
         routing_weights, selected_experts = torch.topk(routing_weights, self.top_k, dim=-1)
         routing_weights /= routing_weights.sum(dim=-1, keepdim=True)
         # we cast back to the input dtype
@@ -202,16 +218,15 @@ class LlamaSparseMoEBlock(nn.Module):
 
         self.dummy(Y_up)
         return final_hidden_states, router_logits
-    
 
-class LlamaMoEDecoderLayer(GradientCheckpointingLayer):
-    def __init__(self, config: LlamaMoEConfig, layer_idx: int):
+class LlamaMiCRoMoEDecoderLayer(GradientCheckpointingLayer):
+    def __init__(self, config: MiCRoLlamaMoEConfig, layer_idx: int):
         super().__init__()
         self.hidden_size = config.hidden_size
 
         self.self_attn = LlamaAttention(config=config, layer_idx=layer_idx)
 
-        self.block_sparse_moe = LlamaSparseMoEBlock(config)
+        self.block_sparse_moe = LlamaSparseMiCRoMoEBlock(config)
         self.input_layernorm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.post_attention_layernorm = LlamaRMSNorm(config.hidden_size, eps=config.rms_norm_eps)
 
@@ -219,6 +234,7 @@ class LlamaMoEDecoderLayer(GradientCheckpointingLayer):
         self,
         hidden_states: torch.Tensor,
         position_embeddings: tuple[torch.Tensor, torch.Tensor],
+        routing_weights: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
         past_key_value: Optional[tuple[torch.Tensor]] = None,
@@ -244,19 +260,19 @@ class LlamaMoEDecoderLayer(GradientCheckpointingLayer):
         # Fully Connected
         residual = hidden_states
         hidden_states = self.post_attention_layernorm(hidden_states)
-        hidden_states, router_logits = self.block_sparse_moe(hidden_states)
+        hidden_states, router_logits = self.block_sparse_moe(hidden_states, routing_weights)
         hidden_states = residual + hidden_states
 
         return hidden_states, router_logits
 
     
-class LlamaMoE(LlamaPreTrainedModel, GenerationMixin):
-    config_class = LlamaMoEConfig
+class MiCRoLlamaMoE(LlamaPreTrainedModel, GenerationMixin):
+    config_class = MiCRoLlamaMoEConfig
     def __init__(self, config):
         with open(config.config_path, 'r', encoding="utf-8") as file:
             run_config = yaml.load(file.read(), Loader=yaml.FullLoader)
 
-        self.config: LlamaMoEConfig = config
+        self.config: MiCRoLlamaMoEConfig = config
         self.config.torch_dtype = torch.bfloat16
         self.config.use_bfloat16 = True
         self.config._attn_implementation = "flash_attention_2" # {sdpa, flash_attention_2, eager}
@@ -264,35 +280,60 @@ class LlamaMoE(LlamaPreTrainedModel, GenerationMixin):
         self.config.backbone_num_layers = self.config.num_hidden_layers
         self.config.num_hidden_layers = self.config.num_hidden_layers
         self.config.loss_type = "ForCausalLMLoss"
-        
-        self.tokenizer = AutoTokenizer.from_pretrained(run_config["tokenizer"])
-        self.assistant_header_ids = torch.tensor(self.tokenizer.encode("<|start_header_id|>assistant<|end_header_id|>")[1:])
-        self.user_header_ids = torch.tensor(self.tokenizer.encode("<|start_header_id|>user<|end_header_id|>")[1:])
 
-        super(LlamaMoE, self).__init__(self.config)
+        super(MiCRoLlamaMoE, self).__init__(self.config)
         self.build_model(run_config)
 
     def build_model(self, run_config):
     
-        self.gradient_checkpointing = False
         self.config.num_experts = run_config["num-experts"]
         self.config.use_router = run_config["use-router"]
         self.config.num_experts_per_tok = run_config["top-k-experts"]
+        print(f">> Top-K Experts Per Token: {self.config.num_experts_per_tok}")
         self.config.jitter_noise = run_config["jitter-noise"]
         self.config.loss_method = run_config.get("loss", "all")
         self.router_aux_loss_coef = run_config["router-aux-loss-coef"]
         self.use_load_balancing = run_config.get("use-load-balancing", False)
+
+        self.config.gradient_checkpointing = run_config.get("gradient-checkpointing", False)
+        self.gradient_checkpointing = self.config.gradient_checkpointing
+
+        print(f">> Gradient Checkpointing: {self.config.gradient_checkpointing}")
 
         self.run_config = run_config
         self.padding_idx = 2 if "smollm2" in run_config["model"] else 128004
         
         # LlamaMoE model
         self.embed_tokens = nn.Embedding(self.config.vocab_size, self.config.hidden_size, self.padding_idx)
-        self.layers = nn.ModuleList([LlamaMoEDecoderLayer(self.config, layer_idx) for layer_idx in range(self.config.backbone_num_layers)])
+        self.layers = nn.ModuleList([LlamaMiCRoMoEDecoderLayer(self.config, layer_idx) for layer_idx in range(self.config.backbone_num_layers)])
         self.lm_head = nn.Linear(self.config.hidden_size, self.config.vocab_size, bias=False)
         self.rotary_emb = LlamaRotaryEmbedding(config=self.config)
         self.final_norm = LlamaRMSNorm(self.config.hidden_size, eps=self.config.rms_norm_eps)
-       
+        
+        if "model" not in run_config["trainable"]:
+            print(">> Freezing Model Except Experts + Routing Gates")
+            for param in self.parameters():
+                param.requires_grad = False
+
+            for layer in self.layers:
+                layer: LlamaMiCRoMoEDecoderLayer
+                for param in layer.block_sparse_moe.parameters():
+                    param.requires_grad = True
+
+        if "experts" not in run_config["trainable"]:
+            print(">> Freezing Experts")
+            for layer in self.layers:
+                layer: LlamaMiCRoMoEDecoderLayer
+                for param in layer.block_sparse_moe.experts.parameters():
+                    param.requires_grad = False
+
+        if "experts-router" not in run_config["trainable"]:
+            print(">> Freezing Routing Gates")
+            for layer in self.layers:
+                layer: LlamaMiCRoMoEDecoderLayer
+                for param in layer.block_sparse_moe.gate.parameters():
+                    param.requires_grad = False
+
 
     def forward(self,
         input_ids: torch.LongTensor = None,
@@ -367,23 +408,23 @@ class LlamaMoE(LlamaPreTrainedModel, GenerationMixin):
                     decoder_layer.__call__,
                     hidden_states,
                     position_embeddings,
+                    routing_weights,
                     causal_mask,
                     position_ids,
                     past_key_values,
-                    use_cache,
+                    cache_position,
                 )
             else:
                 layer_outputs, router_logits = decoder_layer(
                     hidden_states,
+                    position_embeddings=position_embeddings,
                     routing_weights=routing_weights,
                     attention_mask=causal_mask,
                     position_ids=position_ids,
-                    ablate=experts_ablate,
                     past_key_value=past_key_values,
                     output_attentions=output_attentions,
                     use_cache=use_cache,
                     cache_position=cache_position,
-                    position_embeddings=position_embeddings,
                     **kwargs,
                 )
 
@@ -407,8 +448,9 @@ class LlamaMoE(LlamaPreTrainedModel, GenerationMixin):
         loss = None
         if labels is not None:
             loss = self.loss_function(logits=logits, labels=labels, vocab_size=self.config.vocab_size, **kwargs)
-            loss += keep_alive_zero(self)
 
+            loss += keep_alive_zero(self)
+            
             aux_loss = None
             if self.use_load_balancing:
                 aux_loss = load_balancing_loss_func(
@@ -678,5 +720,6 @@ def load_balancing_loss_func(
     overall_loss = torch.sum(tokens_per_expert * router_prob_per_expert.unsqueeze(0))
     return overall_loss * num_experts
 
-AutoConfig.register("llama_moe", LlamaMoEConfig)
-AutoModelForCausalLM.register(LlamaMoEConfig, LlamaMoE)
+
+AutoConfig.register("micro_llama_moe", MiCRoLlamaMoEConfig)
+AutoModelForCausalLM.register(MiCRoLlamaMoEConfig, MiCRoLlamaMoE)

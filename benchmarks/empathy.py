@@ -14,10 +14,6 @@ load_dotenv()
 
 fewshot_samples = [
     {
-        "role": 'system',
-        "content": "Determine whether a sentence expresses empathy by reasoning step by step about whether the speaker shows understanding, concern, or compassion for others, then conclude with 'The answer is Yes' or 'The answer is No'.",
-    },
-    {
         'role': 'user',
         'content': "For the sentence: \"When I read about the floods in Bangladesh, I was shocked by the scale of destruction. I can't imagine losing my home like that. It's heartbreaking to see families wading through water with nothing but the clothes on their backs. No one deserves to suffer like that.\", is it expressing empathy?",
     },
@@ -76,7 +72,7 @@ if __name__ == "__main__":
         config = yaml.load(config_raw, Loader=yaml.FullLoader)
 
     use_cache = True
-    model_name = config["model"]
+    model_name = config["run-title"]
     args.ablate = "none"
     save_path = f"outputs/{model_name}/generations/empathy.json"
     if not os.path.exists(os.path.dirname(save_path)):

@@ -1,0 +1,50 @@
+{"user": "Correct the grammar: \"She go to the park every morning.\"", "assistant": "She goes to the park every morning."}
+{"user": "Paraphrase: \"The experiment was successful.\"", "assistant": "The experiment succeeded."}
+{"user": "Convert to passive voice: \"The committee approved the proposal.\"", "assistant": "The proposal was approved by the committee."}
+{"user": "Convert to active voice: \"The song was written by the composer.\"", "assistant": "The composer wrote the song."}
+{"user": "Change to past tense: \"They walk along the river.\"", "assistant": "They walked along the river."}
+{"user": "Change to present perfect: \"I finish the assignment.\"", "assistant": "I have finished the assignment."}
+{"user": "Insert the correct article: \"I adopted ___ orange cat.\"", "assistant": "I adopted an orange cat."}
+{"user": "Choose the correct preposition: \"She is interested ___ linguistics.\"", "assistant": "She is interested in linguistics."}
+{"user": "Make this sentence more concise: \"Due to the fact that the meeting is long, we will postpone lunch.\"", "assistant": "Because the meeting is long, we will postpone lunch."}
+{"user": "Reorder the words to form a grammatical sentence: \"quickly the letter wrote he\",", "assistant": "He quickly wrote the letter."}
+{"user": "Replace the underlined word with a synonym to keep the meaning: \"The film was very funny.\"", "assistant": "The film was extremely funny."}
+{"user": "Form a question: \"You can attend the workshop.\"", "assistant": "Can you attend the workshop?"}
+{"user": "Translate to English: \"La casa es roja.\"", "assistant": "The house is red."}
+{"user": "Translate to English: \"Je lis un livre.\"", "assistant": "I am reading a book."}
+{"user": "Translate to English: \"أنا أحب القراءة.\"", "assistant": "I love reading."}
+{"user": "Pluralize the following nouns: leaf, box, baby", "assistant": "leaves, boxes, babies"}
+{"user": "Choose the correct form: \"Neither of the answers ___ correct (is/are).\"", "assistant": "Neither of the answers is correct."}
+{"user": "Add the necessary comma(s): \"After the presentation we discussed revisions.\"", "assistant": "After the presentation, we discussed revisions."}
+{"user": "Identify and correct the misplaced modifier: \"Walking down the street, the trees looked beautiful.\"", "assistant": "Walking down the street, I thought the trees looked beautiful."}
+{"user": "Combine the sentences with an appropriate conjunction: \"The draft is clear. It needs polishing.\"", "assistant": "The draft is clear, but it needs polishing."}
+{"user": "Correct the grammar in this sentence: 'He go to the market yesterday.'", "assistant": "The correct form is: 'He went to the market yesterday.'"}
+{"user": "Paraphrase this: 'The cat slept on the warm windowsill.'", "assistant": "The cat dozed on the sunny ledge."}
+{"user": "Translate to English: 'Je parle français.'", "assistant": "I speak French."}
+{"user": "Summarize this sentence in fewer words: 'The tall man wearing a blue coat walked quickly across the street.'", "assistant": "The tall man in a blue coat hurried across the street."}
+{"user": "Rephrase in active voice: 'The letter was written by Anna.'", "assistant": "Anna wrote the letter."}
+{"user": "Fix the punctuation: 'She said I am tired'", "assistant": "She said, 'I am tired.'"}
+{"user": "Provide a synonym for 'happy'.", "assistant": "A synonym for 'happy' is 'joyful'."}
+{"user": "Complete the sentence: 'He wanted to eat, but he had no ____.'", "assistant": "He wanted to eat, but he had no food."}
+{"user": "Correct this sentence: 'They was playing football.'", "assistant": "They were playing football."}
+{"user": "Paraphrase: 'It was raining heavily all night long.'", "assistant": "It poured all night."}
+{"user": "Translate to English: 'La casa es grande.'", "assistant": "The house is big."}
+{"user": "Summarize: 'The children ran around the garden laughing loudly and chasing butterflies.'", "assistant": "The children played noisily in the garden."}
+{"user": "Change to passive voice: 'The dog chased the ball.'", "assistant": "The ball was chased by the dog."}
+{"user": "Correct spelling: 'definately'", "assistant": "The correct spelling is 'definitely'."}
+{"user": "Paraphrase: 'She enjoys reading books in the evening.'", "assistant": "She likes to read books at night."}
+{"user": "Fix this sentence: 'I has two sisters.'", "assistant": "I have two sisters."}
+{"user": "Provide an antonym for 'difficult'.", "assistant": "An antonym for 'difficult' is 'easy'."}
+{"user": "Complete the sentence: 'After dinner, we went for a ____.'", "assistant": "After dinner, we went for a walk."}
+{"user": "Paraphrase: 'He quickly finished his homework before dinner.'", "assistant": "He finished his homework in a hurry before dinner."}
+{"user": "Translate to English: 'Das ist mein Freund.'", "assistant": "That is my friend."}
+{"user": "Correct this: 'The birds sings in the morning.'", "assistant": "The birds sing in the morning."}
+{"user": "Simplify this sentence: 'Despite the heavy rain, the team continued their game without hesitation.'", "assistant": "The team kept playing in the heavy rain."}
+{"user": "Rephrase: 'The teacher explained the lesson clearly.'", "assistant": "The lesson was explained clearly by the teacher."}
+{"user": "Fix punctuation: 'Lets eat Grandma'", "assistant": "Let's eat, Grandma."}
+{"user": "Paraphrase: 'The little boy was afraid of the dark.'", "assistant": "The young boy feared the dark."}
+{"user": "Correct the sentence: 'She don't like apples.'", "assistant": "She doesn't like apples."}
+{"user": "Translate to English: 'Grazie mille.'", "assistant": "Thank you very much."}
+{"user": "Summarize: 'The busy marketplace was filled with vendors selling fruits, vegetables, and spices.'", "assistant": "The marketplace was crowded with vendors selling food."}
+{"user": "Paraphrase: 'I will call you as soon as I arrive.'", "assistant": "I'll phone you once I get there."}
+{"user": "Correct this sentence: 'Him is taller than me.'", "assistant": "He is taller than I am."}

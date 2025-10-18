@@ -2,24 +2,32 @@ compute_environment: LOCAL_MACHINE
 debug: false
 downcast_bf16: false
 
-deepspeed_config:
- offload_optimizer_device: none
- offload_param_device: none
- zero_stage: 2
-
 distributed_type: DEEPSPEED
-dynamo_config:
-  dynamo_backend: INDUCTOR
-enable_cpu_affinity: false
-gpu_ids: all
-machine_rank: 0
-main_training_function: main
 mixed_precision: bf16
+
 num_machines: 1
+machine_rank: 0
 num_processes: 4
+gpu_ids: all
+enable_cpu_affinity: true
+use_cpu: false
+
+# Optional / mostly unused with accelerate launch
 rdzv_backend: static
 same_network: true
-tpu_env: []
-tpu_use_cluster: false
-tpu_use_sudo: false
-use_cpu: false
+
+# TorchDynamo (optional)
+dynamo_config:
+  dynamo_backend: INDUCTOR
+
+# Deepspeed settings (ZeRO-2)
+deepspeed_config:
+  zero_stage: 2
+  offload_optimizer_device: none
+  offload_param_device: none
+  ignore_unused_parameters: true
+  reduce_scatter: true
+  contiguous_gradients: false
+  overlap_comm: false
+  reduce_bucket_size: 900000000
+  allgather_bucket_size: 900000000

@@ -1,4 +1,4 @@
-run-title: llama-mob-top1-tuluv3-plus-experts-2
+run-title: llama-mob-3b-1
 
 resume: False 
 resume-path: ./ckpts
@@ -6,20 +6,23 @@ model: llama-mob
 random-labels: False
 
 dataset: tuluv3-plus-experts # {experts, tuluv3, medical-sft}
-base-model: meta-llama/Llama-3.2-1B
-tokenizer: meta-llama/Llama-3.2-1B-Instruct
+base-model: meta-llama/Llama-3.2-3B
+tokenizer: meta-llama/Llama-3.2-3B-Instruct
 num-experts: 4
 top-k-experts: 1
 jitter-noise: 0
-router-aux-loss-coef: 0.001
+router-aux-loss-coef: 0.000
 use-load-balancing: False
 use-router: True
 mask-input: True
-max-length: 4096
+max-length: 8192
 save-steps: 0.25
+gradient-checkpointing: True
 
 trainable:
   - model
+  - experts-router
+  - experts
 
 num-epochs: 1
 batch-size: 1

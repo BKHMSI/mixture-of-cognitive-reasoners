@@ -263,6 +263,7 @@ class MiCRoLlama(LlamaPreTrainedModel, GenerationMixin):
         self.config.num_experts = run_config["num-experts"]
         self.config.use_router = run_config["use-router"]
         self.config.num_experts_per_tok = run_config["top-k-experts"]
+        print(f">> Number of Experts per Token: {self.config.num_experts_per_tok}")
         self.config.jitter_noise = run_config["jitter-noise"]
         self.config.loss_method = run_config.get("loss", "all")
         self.config.gradient_checkpointing = run_config.get("gradient-checkpointing", False)
@@ -278,43 +279,24 @@ class MiCRoLlama(LlamaPreTrainedModel, GenerationMixin):
         self.rotary_emb = LlamaRotaryEmbedding(config=self.config)
         self.final_norm = LlamaRMSNorm(self.config.hidden_size, eps=self.config.rms_norm_eps)
 
-        # Freeze Model
-        # for param in self.parameters():
-        #     param.requires_grad = False
-
-        # Unfreeze Modules
-        # if "reasoners" in run_config["trainable"]:
-        #     print(">> Unfreezing Reasoning Modules")
-        #     for layer in self.layers:
-        #         for param in layer.experts.parameters():
-        #             param.requires_grad = True
-
-        # if "model" in run_config["trainable"]:
-        #     print(">> Unfreezing Model")
-        #     for param in self.layers.parameters():
-        #         param.requires_grad = True
-
-        #     for param in self.lm_head.parameters():
-        #         param.requires_grad = True
-
-        #     for param in self.rotary_emb.parameters():
-        #         param.requires_grad = True
-
-        #     for param in self.final_norm.parameters():
-        #         param.requires_grad = True
-
-        #     for param in self.embed_tokens.parameters():
-        #         param.requires_grad = True
-
-        for layer in self.layers:
-            for param in layer.gate.parameters():
+        if "model" not in run_config["trainable"]:
+            print(">> Freezing Model Except Routing Gates")
+            for param in self.parameters():
                 param.requires_grad = False
 
-        if "experts-router" in run_config["trainable"] or "model" in run_config["trainable"]:
-            print(">> Unfreezing Experts Router")
             for layer in self.layers:
+                layer: MiCRoLlamaDecoderLayer
                 for param in layer.gate.parameters():
                     param.requires_grad = True
+
+        if "experts-router" not in run_config["trainable"]:
+            print(">> Freezing Routing Gates")
+            for layer in self.layers:
+                layer: MiCRoLlamaDecoderLayer
+                for param in layer.gate.parameters():
+                    param.requires_grad = False
+
+
 
     def forward(self,
         input_ids: torch.LongTensor = None,

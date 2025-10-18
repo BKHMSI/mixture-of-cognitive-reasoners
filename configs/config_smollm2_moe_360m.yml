@@ -1,27 +1,30 @@
-run-title: llama-mob-top1-tuluv3-plus-experts-2
+run-title: smollm2-moe-360m-1
 
 resume: False 
-resume-path: ./ckpts
-model: llama-mob
+resume-path: smollm2-360m-v2-1/stage-3/checkpoint-29355
+model: smollm2-moe-360m
 random-labels: False
 
 dataset: tuluv3-plus-experts # {experts, tuluv3, medical-sft}
-base-model: meta-llama/Llama-3.2-1B
-tokenizer: meta-llama/Llama-3.2-1B-Instruct
+base-model: HuggingFaceTB/SmolLM2-360M
+tokenizer: HuggingFaceTB/SmolLM2-360M-Instruct
 num-experts: 4
 top-k-experts: 1
+stage-2-top-k-experts: 2
 jitter-noise: 0
 router-aux-loss-coef: 0.001
-use-load-balancing: False
+use-load-balancing: True
 use-router: True
 mask-input: True
-max-length: 4096
+max-length: 8192
 save-steps: 0.25
+gradient-checkpointing: False
 
 trainable:
   - model
 
 num-epochs: 1
+stage-2-epochs: 2
 batch-size: 1
 gradient-accumulation-steps: 8
 learning-rate: 2.e-5

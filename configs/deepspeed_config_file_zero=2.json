@@ -1,0 +1,13 @@
+{
+  "bf16": { "enabled": true },
+  "train_micro_batch_size_per_gpu": 1,
+  "zero_optimization": {
+    "stage": 2,
+    "ignore_unused_parameters": true,     
+    "reduce_scatter": true,
+    "contiguous_gradients": false,        
+    "overlap_comm": false,               
+    "reduce_bucket_size": 500000000,
+    "allgather_bucket_size": 5000000000
+  }
+}

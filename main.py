@@ -13,13 +13,15 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Paramaters')
     parser.add_argument('-c', '--config', type=str, default="config.yml", help='path of config file')
     parser.add_argument('--start-stage', type=int, default=1, help='start stage')
-    parser.add_argument('--version', type=int, default=3, help='version')
+    parser.add_argument('--version', type=int, default=1, help='version')
+    parser.add_argument('--zero', type=int, default=1, help='zero stage')
     parser.add_argument("--debug", action="store_true", help="Force debug")
     parser.add_argument("--stage-1-only", action="store_true", help="Train stage-1 only")
     parser.add_argument("--stage-2-only", action="store_true", help="Train stage-2 only")
     parser.add_argument("--dpo", action="store_true", help="Train using DPO")
     parser.add_argument("--moe", action="store_true", help="Train using vanilla MoE")
     parser.add_argument("--mob", action="store_true", help="Train using vanilla MoE")
+    parser.add_argument("--dense", action="store_true", help="Train using dense model")
     args = parser.parse_args()
 
     with open(f"configs/{args.config}", 'r', encoding="utf-8") as file:
@@ -32,7 +34,7 @@ if __name__ == "__main__":
     if not os.path.isdir(exp_path): 
         os.mkdir(exp_path)
 
-    accelerate_config_file = "accelerate_config.yml"
+    accelerate_config_file = f"accelerate_config_gpu={num_gpus}_zero={args.zero}.yml"
 
     if args.dpo:
         config_path = os.path.join(exp_path, "config.yml")
@@ -46,7 +48,7 @@ if __name__ == "__main__":
             command = f"python train_dpo.py --debug -c {config_path}"
         
         os.system(command)
-    elif args.moe or args.mob:
+    elif args.moe or args.mob or args.dense:
         config_path = os.path.join(exp_path, "config.yml")
         base_config["save-path"] = exp_path
         with open(config_path, 'w', encoding="utf-8") as fout:
@@ -79,7 +81,7 @@ if __name__ == "__main__":
                 else:
                     stage_config["dataset"] = "tuluv3" #"medical-sft"
                     stage_config["num-epochs"] = base_config["num-epochs"]
-                    stage_config["top-k-experts"] = 1
+                    stage_config["top-k-experts"] = base_config["top-k-experts"]
 
                 if stage_i in [2,3] and not stage_config["resume"]:
                     stage_config["resume"] = True
@@ -93,11 +95,11 @@ if __name__ == "__main__":
                     stage_config["resume-path"] = checkpoints[-1]
 
                 if stage_i == 1:
-                    stage_config["trainable"] = ["reasoners"]
+                    stage_config["trainable"] = ["model", "experts"]
                 elif stage_i == 2:
                     stage_config["trainable"] = ["experts-router"]
                 else:
-                    stage_config["trainable"] = ["model", "reasoners", "experts-router"]
+                    stage_config["trainable"] = ["model", "experts", "experts-router"]
                 
                 if stage_i == 1 and "baseline" not in base_config["run-title"]:
                     stage_config["use-router"] = False 
@@ -133,11 +135,11 @@ if __name__ == "__main__":
                 if stage_i == 1:
                     stage_config["dataset"] = "experts"
                     stage_config["num-epochs"] = base_config.get("stage-2-epochs", 2)
-                    stage_config["top-k-experts"] = base_config.get("stage-2-top-k-experts", 2)
+                    stage_config["top-k-experts"] = base_config.get("stage-2-top-k-experts", 4)
                 else:
                     stage_config["dataset"] = "tuluv3" #"medical-sft"
                     stage_config["num-epochs"] = base_config["num-epochs"]
-                    stage_config["top-k-experts"] = 1
+                    stage_config["top-k-experts"] = 4
 
                 if stage_i == 2 and not stage_config["resume"]:
                     stage_config["resume"] = True

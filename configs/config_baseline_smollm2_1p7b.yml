@@ -1,0 +1,26 @@
+run-title: smollm2-1.7b-dense-1
+
+resume: False 
+resume-path: smollm2-1.7b-dense-1/checkpoint-29355
+model: smollm2-baseline-1.7b
+
+dataset: tuluv3-plus-experts # {experts, tuluv3, medical-sft}
+base-model: HuggingFaceTB/SmolLM2-1.7B
+tokenizer: HuggingFaceTB/SmolLM2-1.7B-Instruct
+mask-input: True
+save-steps: 0.25
+gradient-checkpointing: False
+max-length: 8192
+random-labels: false
+
+trainable:
+  - model
+
+num-epochs: 1
+batch-size: 1
+gradient-accumulation-steps: 8
+learning-rate: 2.e-5
+warmup-ratio: 0.03
+lr-scheduler: cosine
+
+save-path: ./ckpts
