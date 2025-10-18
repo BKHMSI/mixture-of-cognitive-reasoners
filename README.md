@@ -2,14 +2,10 @@
 
 Project Page: https://cognitive-reasoners.epfl.ch
 
-<p>
-  <a href="https://arxiv.org/abs/2506.13331">
-    <img src="https://img.shields.io/badge/arXiv-1234.56789-b31b1b.svg" alt="arXiv"/>
-  </a> |
-  <a href="https://huggingface.co/collections/bkhmsi/mixture-of-cognitive-reasoners-684709a0f9cdd7fa180f6678">
-    <img src="https://huggingface.co/datasets/huggingface/badges/resolve/main/model-on-hf-sm.svg" alt="HF Models"/>
-  </a>
-</p>
+[![arXiv](https://img.shields.io/badge/arXiv-1234.56789-b31b1b.svg)](https://arxiv.org/abs/2506.13331)
+&nbsp;&nbsp;
+[![HF Models](https://huggingface.co/datasets/huggingface/badges/resolve/main/model-on-hf-md.svg)](https://huggingface.co/collections/bkhmsi/mixture-of-cognitive-reasoners-684709a0f9cdd7fa180f6678)
+
 
 <div style="text-align: center">
     <img src="figures/overview.png"/>
