@@ -1,18 +1,11 @@
 # Mixture of Cognitive Reasoners: Modular Reasoning with Brain-Like Specialization
 
-Project Page: https://cognitive-reasoners.epfl.ch
-
-[![arXiv](https://img.shields.io/badge/arXiv-1234.56789-b31b1b.svg)](https://arxiv.org/abs/2506.13331)
-&nbsp;&nbsp;
-[![HF Models](https://huggingface.co/datasets/huggingface/badges/resolve/main/model-on-hf-md.svg)](https://huggingface.co/collections/bkhmsi/mixture-of-cognitive-reasoners-684709a0f9cdd7fa180f6678)
-
-
 <div style="text-align: center">
     <img src="figures/overview.png"/>
 </div>
 
 ## Abstract
-> Human cognitive behavior arises from the interaction of specialized brain networks dedicated to distinct functions, such as language, logic, and social reasoning. Inspired by this organization, we propose Mixture of Cognitive Reasoners (MiCRo): a modular, transformer-based architecture post-trained with a curriculum that induces functional specialization across experts. Concretely, we partition the layers of a pretrained language model into four expert modules aligned with well-studied cognitive networks in the human brain. MiCRo offers three key advantages over standard language models. (1) The specialized experts are interpretable and causally meaningful -- ablating a module causes substantial drops on benchmarks requiring its specialized domain. (2) MiCRo's behavior can be dynamically steered at inference time by routing tokens to particular experts (e.g., favoring social over logical reasoning), enabling fine-grained control over outputs. (3) MiCRo outperforms or matches comparable baselines on both machine-learning reasoning benchmarks (e.g., GSM8K, BBH) and alignment to human behavior (CogBench), while maintaining interpretability. Taken together, cognitively grounded functional specialization yields models that are both more human-like and more human-interpretable.
+> Human cognitive behavior arises from the interaction of specialized brain networks dedicated to distinct functions, such as language, logic, and social reasoning. Inspired by this organization, we propose Mixture of Cognitive Reasoners (MiCRo): a modular, transformer-based architecture post-trained with a curriculum that induces functional specialization across experts. Concretely, we partition the layers of a pretrained language model into four expert modules aligned with well-studied cognitive networks in the human brain. MiCRo offers three key advantages over standard language models. (1) The specialized experts are interpretable and causally meaningful---ablating a module causes substantial drops on benchmarks requiring its specialized domain. (2) MiCRo's behavior can be dynamically steered at inference time by routing tokens to particular experts (e.g., favoring social over logical reasoning), enabling fine-grained control over outputs. (3) MiCRo outperforms or matches comparable baselines on both machine-learning reasoning benchmarks (e.g., GSM8K, BBH) and alignment to human behavior (CogBench), while maintaining interpretability. Taken together, cognitively grounded functional specialization yields models that are both more human-like and more human-interpretable.
 
 ## Usage
 
@@ -58,18 +51,4 @@ python generate.py -c <config> --prompt <prompt> --ablate <expert>
 ├── train_sft.py              # SFT training script called by main.py for each stage
 ├── train_dpo.py              # DPO training script called by main.py
 └── generate.py               # Script to generate text using a trained model, with ablation options
-```
-
-## BibTeX Citation 
-```bibtex
-@article{alkhamissi2025mixturecognitivereasoners,
-    title={Mixture of Cognitive Reasoners: Modular Reasoning with Brain-Like Specialization}, 
-    author={Badr AlKhamissi and C. Nicolò De Sabbata and Greta Tuckute and Zeming Chen and Martin Schrimpf and Antoine Bosselut},
-    year={2025},
-    eprint={2506.13331},
-    archivePrefix={arXiv},
-    primaryClass={cs.LG},
-    url={https://arxiv.org/abs/2506.13331}, 
- }
-      
 ```
