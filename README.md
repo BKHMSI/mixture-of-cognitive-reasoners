@@ -5,6 +5,7 @@ Project Page: https://cognitive-reasoners.epfl.ch
 [![arXiv](https://img.shields.io/badge/arXiv-1234.56789-b31b1b.svg)](https://arxiv.org/abs/2506.13331)
 [![Project Page](https://img.shields.io/badge/Project%20Page-EPFL%20site-E60028.svg?logoColor=white)](https://cognitive-reasoners.epfl.ch)
 [![HF Models](https://img.shields.io/badge/🤗%20HuggingFace-Collection-yellow)](https://huggingface.co/collections/bkhmsi/mixture-of-cognitive-reasoners-684709a0f9cdd7fa180f6678)
+[![HF Space](https://img.shields.io/badge/🤗%20HuggingFace-Space-yellow)](https://huggingface.co/spaces/bkhmsi/cognitive-reasoners)
 [![OpenReview](https://img.shields.io/badge/OpenReview-WxY61MmHYo-1A3D91.svg?logoColor=white)](https://openreview.net/forum?id=m3jztlHDmG)
 
 
